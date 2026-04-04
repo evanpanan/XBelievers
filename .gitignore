@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+venv/
+
+# Logs
+*.log
+frontend.log
+server.log
+
+# Generated images (keep folder structure, ignore content)
+generated-images/
+
+# Test results
+test-results/
+
+# WorkBuddy internal
+.workbuddy/
+
+# macOS
+.DS_Store
