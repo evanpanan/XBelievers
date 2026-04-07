@@ -2323,7 +2323,10 @@
 <!-- ===================== SCRIPT ===================== -->
 <script>
 // ===== 配置 =====
-const API_BASE = 'http://localhost:5173';
+// 自动检测运行环境：localhost 用本地后端，Vercel 部署用相对路径
+const API_BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+  ? 'http://localhost:5173'
+  : '';
 const STORAGE_KEY = 'news_inspire_llm_config';
 
 // ===== 状态 =====

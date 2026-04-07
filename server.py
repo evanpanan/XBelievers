@@ -9,7 +9,6 @@
 
 import sys
 import os
-sys.path.insert(0, os.path.expanduser('~/Library/Python/3.9/lib/python/site-packages'))
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -3918,7 +3917,8 @@ def _fetch_finviz_institutional_holdings():
         if current_price <= 0:
             try:
                 # 备用：从自身API获取
-                local_resp = requests.get('http://localhost:5173/api/stock?ticker=XWIN', timeout=5)
+                self_url = os.environ.get('VERCEL_URL', 'http://localhost:5173')
+                local_resp = requests.get(f'{self_url}/api/stock?ticker=XWIN', timeout=5)
                 if local_resp.status_code == 200:
                     local_data = local_resp.json()
                     # 自身API返回格式: {"data": {"close": 7.24, ...}}
@@ -4160,7 +4160,8 @@ def get_institutional_holdings():
             pass
         if current_price <= 0:
             try:
-                local_resp = requests.get('http://localhost:5173/api/stock?ticker=XWIN', timeout=5)
+                self_url = os.environ.get('VERCEL_URL', 'http://localhost:5173')
+                local_resp = requests.get(f'{self_url}/api/stock?ticker=XWIN', timeout=5)
                 if local_resp.status_code == 200:
                     local_data = local_resp.json()
                     if 'data' in local_data and local_data['data'].get('close'):
