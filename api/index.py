@@ -1,4 +1,7 @@
-from server import app
+import sys
+import os
 
-# Vercel Python Runtime 自动识别此文件为 serverless function
-# 所有 /api/* 请求都转发给 Flask app 处理
+# 确保根目录在 path 中
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from server import app
