@@ -2366,12 +2366,12 @@ def admin_llm_config():
     """获取 / 保存 / 清空 LLM 配置（需登录）"""
     if request.method == 'GET':
         cfg = get_llm_config()
-        # 不返回 api_key 明文，只返回是否已配置
         return jsonify({
             "success": True,
             "config": {
                 "provider": cfg.get('provider', ''),
                 "model": cfg.get('model', ''),
+                "api_key": cfg.get('api_key', ''),
                 "api_key_set": bool(cfg.get('api_key', '')),
                 "extra_requirement": cfg.get('extra_requirement', ''),
             }

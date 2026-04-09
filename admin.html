@@ -282,6 +282,9 @@ async function init() {
       onProviderChange();
       setTimeout(() => {
         document.getElementById('modelSelect').value = cfg.model;
+        if (cfg.api_key) {
+          document.getElementById('apiKeyInput').value = cfg.api_key;
+        }
         document.getElementById('extraReq').value = cfg.extra_requirement || '';
         updateStatus(true);
       }, 50);
