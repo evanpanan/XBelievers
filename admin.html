@@ -218,6 +218,7 @@
     <div class="btn-row">
       <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">💾 保存配置</button>
       <button class="btn btn-outline" id="testBtn" onclick="testConnection()">🧪 测试连接</button>
+      <button class="btn btn-danger" id="clearBtn" onclick="clearConfig()" style="display:none">🗑 取消配置</button>
     </div>
     <div class="msg" id="configMsg"></div>
   </div>
@@ -316,12 +317,15 @@ function onProviderChange() {
 
 function updateStatus(on) {
   const el = document.getElementById('configStatus');
+  const clearBtn = document.getElementById('clearBtn');
   if (on) {
     el.className = 'config-status on';
     el.innerHTML = '<span class="dot"></span> 已配置';
+    clearBtn.style.display = '';
   } else {
     el.className = 'config-status off';
     el.innerHTML = '<span class="dot"></span> 未配置';
+    clearBtn.style.display = 'none';
   }
 }
 
@@ -372,6 +376,36 @@ async function saveConfig() {
   }
   btn.disabled = false;
   btn.textContent = '💾 保存配置';
+}
+
+// ── 取消配置 ───────────────────────────────────────────
+async function clearConfig() {
+  if (!confirm('确定要取消配置吗？前台将无法使用 AI 生成功能。')) return;
+  const btn = document.getElementById('clearBtn');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`${API}/api/admin/config`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const data = await resp.json();
+    if (data.success) {
+      // 清空表单
+      document.getElementById('providerSelect').value = '';
+      document.getElementById('modelSelect').innerHTML = '<option value="">-- 先选择服务商 --</option>';
+      document.getElementById('apiKeyInput').value = '';
+      document.getElementById('extraReq').value = '';
+      currentProvider = '';
+      currentModel = '';
+      updateStatus(false);
+      showMsg('configMsg', '已取消配置', 'success');
+    } else {
+      showMsg('configMsg', data.error || '操作失败', 'error');
+    }
+  } catch(e) {
+    showMsg('configMsg', '网络错误，请稍后重试', 'error');
+  }
+  btn.disabled = false;
 }
 
 // ── 测试连接 ───────────────────────────────────────────

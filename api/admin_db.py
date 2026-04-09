@@ -136,5 +136,21 @@ def save_llm_config(provider: str, api_key: str, model: str, extra_requirement: 
     return affected > 0
 
 
+def clear_llm_config() -> bool:
+    """清空 LLM 配置（保留行，只清空字段）"""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        UPDATE llm_config
+        SET provider = '', api_key = '', model = '',
+            extra_requirement = '', updated_at = strftime('%s', 'now')
+        WHERE id = 1
+    ''')
+    conn.commit()
+    affected = cur.rowcount
+    conn.close()
+    return affected > 0
+
+
 # ─── 初始化 ───────────────────────────────────────────────
 init_db()

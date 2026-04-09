@@ -31,10 +31,10 @@ CORS(app, supports_credentials=True)
 # 导入后台数据库模块
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
 try:
-    from admin_db import check_admin, change_password, get_llm_config, save_llm_config, get_all_admins
+    from admin_db import check_admin, change_password, get_llm_config, save_llm_config, clear_llm_config, get_all_admins
 except ImportError:
     # 兼容未初始化的情况
-    from api.admin_db import check_admin, change_password, get_llm_config, save_llm_config, get_all_admins
+    from api.admin_db import check_admin, change_password, get_llm_config, save_llm_config, clear_llm_config, get_all_admins
 
 # ============================================================
 #  LLM 服务抽象层 —— 支持多家 OpenAI 兼容 API
@@ -2360,10 +2360,10 @@ def admin_required(f):
     return decorated
 
 
-@app.route('/api/admin/config', methods=['GET', 'POST'])
+@app.route('/api/admin/config', methods=['GET', 'POST', 'DELETE'])
 @admin_required
 def admin_llm_config():
-    """获取 / 保存 LLM 配置（需登录）"""
+    """获取 / 保存 / 清空 LLM 配置（需登录）"""
     if request.method == 'GET':
         cfg = get_llm_config()
         # 不返回 api_key 明文，只返回是否已配置
@@ -2376,6 +2376,10 @@ def admin_llm_config():
                 "extra_requirement": cfg.get('extra_requirement', ''),
             }
         })
+
+    if request.method == 'DELETE':
+        clear_llm_config()
+        return jsonify({"success": True})
 
     data = request.get_json(force=True)
     provider = data.get('provider', '').strip()
