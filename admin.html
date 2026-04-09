@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 - XBelievers</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a1628;
+    color: #ccd6f6;
+    min-height: 100vh;
+  }
+  /* 顶部导航 */
+  .topbar {
+    background: #112240;
+    border-bottom: 1px solid #1d3a5f;
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #64ffda;
+  }
+  .topbar-brand span { font-size: 24px; }
+  .topbar-actions { display: flex; align-items: center; gap: 12px; }
+  .topbar-user { font-size: 13px; color: #8892b0; }
+  .logout-btn {
+    background: transparent;
+    border: 1px solid #ff6b6b;
+    color: #ff6b6b;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .logout-btn:hover { background: #ff6b6b; color: #0a192f; }
+
+  /* 主内容 */
+  .main { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+
+  .card {
+    background: #112240;
+    border: 1px solid #1d3a5f;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #64ffda;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title span { font-size: 20px; }
+
+  /* 表单 */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .form-row.full { grid-template-columns: 1fr; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    color: #8892b0;
+    margin-bottom: 6px;
+  }
+  .form-group label .req { color: #ff6b6b; margin-right: 2px; }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 10px 14px;
+    background: #0a192f;
+    border: 1px solid #1d3a5f;
+    border-radius: 8px;
+    color: #e6f1ff;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: #64ffda;
+    box-shadow: 0 0 0 3px rgba(100,255,218,.1);
+  }
+  .key-row { position: relative; }
+  .key-row input { padding-right: 40px; }
+  .key-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #8892b0;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  select option { background: #0a192f; }
+
+  /* 按钮 */
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all .2s;
+  }
+  .btn-primary { background: #64ffda; color: #0a192f; }
+  .btn-primary:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-danger { background: transparent; border: 1px solid #ff6b6b; color: #ff6b6b; }
+  .btn-danger:hover { background: #ff6b6b; color: #0a192f; }
+  .btn-outline { background: transparent; border: 1px solid #64ffda; color: #64ffda; }
+  .btn-outline:hover { background: rgba(100,255,218,.1); }
+
+  /* 消息提示 */
+  .msg {
+    font-size: 13px;
+    margin-top: 10px;
+    min-height: 18px;
+    border-radius: 6px;
+    padding: 8px 12px;
+  }
+  .msg-success { background: rgba(100,255,218,.1); color: #64ffda; border: 1px solid rgba(100,255,218,.3); }
+  .msg-error { background: rgba(255,107,107,.1); color: #ff6b6b; border: 1px solid rgba(255,107,107,.3); }
+
+  /* 状态指示 */
+  .config-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .config-status.on { background: rgba(100,255,218,.1); color: #64ffda; border: 1px solid rgba(100,255,218,.3); }
+  .config-status.off { background: rgba(255,107,107,.1); color: #ff6b6b; border: 1px solid rgba(255,107,107,.3); }
+  .config-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <span>🐙</span> XBelievers 管理后台
+  </div>
+  <div class="topbar-actions">
+    <a href="/" target="_blank" class="btn btn-outline" style="font-size:12px;padding:6px 12px;">打开前台</a>
+    <span class="topbar-user" id="currentUser"></span>
+    <button class="logout-btn" onclick="doLogout()">退出</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- LLM 配置 -->
+  <div class="card">
+    <div class="card-title"><span>🤖</span> LLM 大模型配置</div>
+    <div id="configStatus" class="config-status off">
+      <span class="dot"></span> 未配置
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label><span class="req">*</span> 选择服务商</label>
+        <select id="providerSelect" onchange="onProviderChange()">
+          <option value="">-- 先选择服务商 --</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><span class="req">*</span> 选择模型</label>
+        <select id="modelSelect">
+          <option value="">-- 先选择服务商 --</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label><span class="req">*</span> API Key</label>
+        <div class="key-row">
+          <input type="password" id="apiKeyInput" placeholder="粘贴你的 API Key..." autocomplete="off" />
+          <button class="key-toggle" onclick="toggleKey()">👁</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label>附加要求（可选）</label>
+        <textarea id="extraReq" placeholder="例如：生成内容控制在500字以内，突出品牌调性..."></textarea>
+      </div>
+    </div>
+    <div class="form-row full">
+      <a id="apiSite" href="#" target="_blank" style="font-size:12px;color:#8892b0;text-decoration:none;margin-top:2px;">🔗 获取 API Key →</a>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">💾 保存配置</button>
+      <button class="btn btn-outline" id="testBtn" onclick="testConnection()">🧪 测试连接</button>
+    </div>
+    <div class="msg" id="configMsg"></div>
+  </div>
+
+  <!-- 修改密码 -->
+  <div class="card">
+    <div class="card-title"><span>🔐</span> 修改密码</div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label>原密码</label>
+        <input type="password" id="oldPw" placeholder="••••••••" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>新密码</label>
+        <input type="password" id="newPw" placeholder="至少6位" />
+      </div>
+      <div class="form-group">
+        <label>确认新密码</label>
+        <input type="password" id="newPw2" placeholder="再次输入新密码" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="changePassword()">✅ 确认修改</button>
+    </div>
+    <div class="msg" id="pwMsg"></div>
+  </div>
+
+</div>
+
+<script>
+const API = location.origin;
+let providers = {};
+let currentProvider = '';
+let currentModel = '';
+
+// ── 初始化 ──────────────────────────────────────────────
+async function init() {
+  // 检查登录状态
+  const ck = await fetch(`${API}/api/admin/check`, { credentials: 'include' });
+  const cd = await ck.json();
+  if (!cd.logged_in) { location.href = '/admin'; return; }
+  document.getElementById('currentUser').textContent = cd.username;
+
+  // 加载提供商列表
+  const rp = await fetch(`${API}/api/providers`);
+  const rd = await rp.json();
+  if (rd.success) providers = rd.providers;
+  fillProviderSelect();
+
+  // 加载已有配置
+  const rc = await fetch(`${API}/api/admin/config`, { credentials: 'include' });
+  const cd2 = await rc.json();
+  if (cd2.success && cd2.config) {
+    const cfg = cd2.config;
+    if (cfg.provider) {
+      currentProvider = cfg.provider;
+      currentModel = cfg.model;
+      document.getElementById('providerSelect').value = cfg.provider;
+      onProviderChange();
+      setTimeout(() => {
+        document.getElementById('modelSelect').value = cfg.model;
+        document.getElementById('extraReq').value = cfg.extra_requirement || '';
+        updateStatus(true);
+      }, 50);
+    }
+  }
+}
+
+function fillProviderSelect() {
+  const sel = document.getElementById('providerSelect');
+  for (const [name, info] of Object.entries(providers)) {
+    sel.add(new Option(info.models[0]?.label ? name : name, name));
+  }
+}
+
+function onProviderChange() {
+  const p = document.getElementById('providerSelect').value;
+  const mSel = document.getElementById('modelSelect');
+  const site = document.getElementById('apiSite');
+  mSel.innerHTML = '<option value="">-- 选择模型 --</option>';
+  document.getElementById('apiKeyInput').value = '';
+  if (!p || !providers[p]) return;
+  const info = providers[p];
+  for (const m of info.models) {
+    mSel.add(new Option(m.label, m.id));
+  }
+  if (info.site) {
+    site.href = info.site;
+    site.style.display = '';
+  } else {
+    site.style.display = 'none';
+  }
+}
+
+function updateStatus(on) {
+  const el = document.getElementById('configStatus');
+  if (on) {
+    el.className = 'config-status on';
+    el.innerHTML = '<span class="dot"></span> 已配置';
+  } else {
+    el.className = 'config-status off';
+    el.innerHTML = '<span class="dot"></span> 未配置';
+  }
+}
+
+function showMsg(id, msg, type) {
+  const el = document.getElementById(id);
+  el.className = `msg msg-${type}`;
+  el.textContent = msg;
+  setTimeout(() => { el.textContent = ''; el.className = 'msg'; }, 4000);
+}
+
+function toggleKey() {
+  const inp = document.getElementById('apiKeyInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ── 保存配置 ───────────────────────────────────────────
+async function saveConfig() {
+  const provider = document.getElementById('providerSelect').value;
+  const model = document.getElementById('modelSelect').value;
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const extraReq = document.getElementById('extraReq').value.trim();
+  const btn = document.getElementById('saveBtn');
+
+  if (!provider) { showMsg('configMsg', '请选择服务商', 'error'); return; }
+  if (!model) { showMsg('configMsg', '请选择模型', 'error'); return; }
+  if (!apiKey) { showMsg('configMsg', '请填写 API Key', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    const resp = await fetch(`${API}/api/admin/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ provider, model, api_key: apiKey, extra_requirement: extraReq }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      currentProvider = provider;
+      currentModel = model;
+      updateStatus(true);
+      showMsg('configMsg', '配置保存成功，前台已自动生效', 'success');
+    } else {
+      showMsg('configMsg', data.error || '保存失败', 'error');
+    }
+  } catch(e) {
+    showMsg('configMsg', '网络错误，请稍后重试', 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = '💾 保存配置';
+}
+
+// ── 测试连接 ───────────────────────────────────────────
+async function testConnection() {
+  const provider = document.getElementById('providerSelect').value;
+  const model = document.getElementById('modelSelect').value;
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const btn = document.getElementById('testBtn');
+
+  if (!provider || !apiKey) { showMsg('configMsg', '请先填写服务商和 API Key', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  try {
+    const resp = await fetch(`${API}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        type: 'poster',
+        article: { title: '测试标题', source: '测试来源' },
+        // 临时覆盖测试（后端会优先读数据库配置，但先测试用这个）
+        _test_provider: provider,
+        _test_api_key: apiKey,
+        _test_model: model,
+      }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showMsg('configMsg', `✅ 连接成功！当前模型：${data.model}`, 'success');
+    } else {
+      showMsg('configMsg', `❌ ${data.error}`, 'error');
+    }
+  } catch(e) {
+    showMsg('configMsg', '网络错误，请检查网络后重试', 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = '🧪 测试连接';
+}
+
+// ── 修改密码 ───────────────────────────────────────────
+async function changePassword() {
+  const oldPw = document.getElementById('oldPw').value;
+  const newPw = document.getElementById('newPw').value;
+  const newPw2 = document.getElementById('newPw2').value;
+
+  if (!oldPw) { showMsg('pwMsg', '请填写原密码', 'error'); return; }
+  if (!newPw || newPw.length < 6) { showMsg('pwMsg', '新密码长度不能少于 6 位', 'error'); return; }
+  if (newPw !== newPw2) { showMsg('pwMsg', '两次新密码不一致', 'error'); return; }
+
+  try {
+    const resp = await fetch(`${API}/api/admin/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showMsg('pwMsg', '✅ 密码修改成功', 'success');
+      document.getElementById('oldPw').value = '';
+      document.getElementById('newPw').value = '';
+      document.getElementById('newPw2').value = '';
+    } else {
+      showMsg('pwMsg', data.error || '修改失败', 'error');
+    }
+  } catch(e) {
+    showMsg('pwMsg', '网络错误，请稍后重试', 'error');
+  }
+}
+
+// ── 退出登录 ───────────────────────────────────────────
+async function doLogout() {
+  await fetch(`${API}/api/admin/logout`, { method: 'POST', credentials: 'include' });
+  location.href = '/admin';
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1990,50 +1990,6 @@
   </div>
 </div>
 
-<!-- LLM 配置侧边栏 -->
-<div class="llm-overlay" id="llmOverlay" onclick="closeLLMPanel()"></div>
-<div class="llm-panel" id="llmPanel">
-  <div class="lp-head">
-    <h3>🤖 LLM 模型配置</h3>
-    <button class="lp-close" onclick="closeLLMPanel()">✕</button>
-  </div>
-  <div class="lp-body">
-    <div class="lp-group">
-      <div class="lp-label"><span class="req">*</span> 选择服务商</div>
-      <div class="provider-grid" id="providerGrid">
-        <!-- 动态填充 -->
-      </div>
-    </div>
-
-    <div class="lp-group">
-      <div class="lp-label">选择模型</div>
-      <select class="model-select" id="modelSelect">
-        <option value="">-- 先选择服务商 --</option>
-      </select>
-    </div>
-
-    <div class="lp-group">
-      <div class="lp-label"><span class="req">*</span> API Key</div>
-      <div class="key-row">
-        <input class="key-input" id="apiKeyInput" type="password" placeholder="粘贴你的 API Key..." autocomplete="off" />
-        <button class="key-toggle" id="keyToggle" onclick="toggleKeyVisibility()">👁</button>
-      </div>
-      <div class="lp-hint" id="keyHint"></div>
-    </div>
-
-    <div class="lp-divider"></div>
-
-    <div class="lp-warning">
-      🔒 你的 API Key 仅存储在浏览器本地，不会上传到任何服务器。所有 LLM 请求均从你的浏览器发出，经本地后端直接调用对应服务商 API。
-    </div>
-
-    <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
-      <button class="lp-save" onclick="saveLLMConfig()">✅ 保存配置</button>
-      <button class="lp-test" id="testBtn" onclick="testLLMConnection()">🧪 测试连接（发送一条验证请求）</button>
-    </div>
-  </div>
-</div>
-
 <header>
   <div class="wrap">
     <div class="hd">
@@ -2046,10 +2002,10 @@
       </a>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="tag">🌊 深度洞察 · 智造内容</div>
-        <div class="llm-status off" id="llmStatusBadge" onclick="openLLMPanel()">
+        <a class="llm-status off" id="llmStatusBadge" href="/admin" target="_blank" title="管理后台">
           <span class="llm-dot"></span>
-          <span id="llmStatusText">未配置 LLM</span>
-        </div>
+          <span id="llmStatusText">LLM 未配置</span>
+        </a>
       </div>
     </div>
   </div>
@@ -2148,7 +2104,7 @@
           <div class="demo-link-list" id="demoLinks">
             <span class="demo-link" onclick="toggleManual()">✍️ 手动输入内容</span>
             <span class="demo-link" onclick="useBuiltinDemo()">🎯 体验演示</span>
-            <span class="demo-link" onclick="openLLMPanel()">🤖 配置 AI 模型</span>
+            <span class="demo-link" onclick="window.open('/admin','_blank')">🤖 AI 模型配置</span>
           </div>
         </div>
 
@@ -2188,10 +2144,10 @@
 
           <!-- 生成栏 -->
           <div class="gen-bar">
-            <div class="gen-bar-info">
+            <div class="gen-bar-info" id="llmBarInfo">
               已解析新闻，选择要生成的内容类型：
               <div class="gen-bar-warning" id="llmWarning" style="display:none">
-                ⚠️ 请先配置 LLM 模型（点击右上角「未配置 LLM」），否则将使用本地模板生成
+                ⚠️ LLM 未配置，将使用本地模板生成（<a href="/admin" target="_blank" style="color:inherit;text-decoration:underline">去后台配置</a>）
               </div>
             </div>
             <div class="gen-btns">
@@ -2335,13 +2291,10 @@
 const API_BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
   ? 'http://localhost:5173'
   : '';
-const STORAGE_KEY = 'news_inspire_llm_config';
-
 // ===== 状态 =====
 let parsedArticle = null;
-let providersData = null;    // 从后端获取的提供商列表
-let selectedProvider = null; // 当前选中的提供商名称
-let selectedModel = null;
+// LLM 配置由后台统一管理，前端只读状态
+let currentLLMConfigured = false;
 
 // ===== 机构持股数据 =====
 let instData = null;           // 全部机构数据
@@ -3441,13 +3394,6 @@ function openAnnouncement(url) {
 
 // ===== 新闻列表生成（海报/视频/文章） =====
 async function genFromNewsArticle(art, type) {
-  const config = loadLLMConfig();
-  if (!config.provider || !config.apiKey) {
-    toast('⚠️ 请先配置 LLM 模型', 'err');
-    openLLMPanel();
-    return;
-  }
-
   const typeNames = { poster: '海报文案', video: '短视频脚本', article: '深度文章' };
   const typeEmoji = { poster: '🎨', video: '🎬', article: '📝' };
 
@@ -3534,10 +3480,8 @@ async function genFromNewsArticle(art, type) {
 
   // 调用 LLM 生成
   try {
-    const content = await callLLMGenerate(type, article, config);
+    const content = await callLLMGenerate(type, article);
     content._llmUsed = true;
-    content._llmProvider = config.provider;
-    content._llmModel = config.model;
 
     document.getElementById('newsGenTitle').textContent = `${typeEmoji[type]} ${typeNames[type]} — ${escHtml(title.slice(0, 30))}${title.length > 30 ? '…' : ''}`;
     body.innerHTML = `<div class="out-card ${type}" id="out_${type}">${renderCard(type, content, parsedArticle)}</div>`;
@@ -3561,13 +3505,6 @@ function closeNewsGenModal() {
 
 // ===== 公告内容生成（弹窗模式，同新闻） =====
 async function genFromAnnouncement(ann, type) {
-  const config = loadLLMConfig();
-  if (!config.provider || !config.apiKey) {
-    toast('⚠️ 请先配置 LLM 模型', 'err');
-    openLLMPanel();
-    return;
-  }
-
   const typeNames = { poster: '海报文案', video: '短视频脚本', article: '深度文章' };
   const typeEmoji = { poster: '🎨', video: '🎬', article: '📝' };
 
@@ -3579,7 +3516,7 @@ async function genFromAnnouncement(ann, type) {
   body.innerHTML = '<div class="gen-loading"><div class="spinner"></div><p>🤖 AI 正在基于公告内容创作，请稍候...</p></div>';
   body.scrollTop = 0;
 
-  // 构建 article 对象（给 callLLMGenerate 用）
+  // 构建 article 对象
   const fullText = (ann.title || '') + ' ' + (ann.content || ann.summary || '');
   const article = {
     title: ann.title || '公告',
@@ -3605,10 +3542,8 @@ async function genFromAnnouncement(ann, type) {
 
   // 调用 LLM 生成
   try {
-    const content = await callLLMGenerate(type, article, config);
+    const content = await callLLMGenerate(type, article);
     content._llmUsed = true;
-    content._llmProvider = config.provider;
-    content._llmModel = config.model;
 
     document.getElementById('newsGenTitle').textContent = `${typeEmoji[type]} ${typeNames[type]} — ${escHtml((ann.title || '公告').slice(0, 30))}${(ann.title || '').length > 30 ? '…' : ''}`;
     body.innerHTML = `<div class="out-card ${type}" id="out_${type}">${renderCard(type, content, parsedArticle)}</div>`;
@@ -3642,178 +3577,26 @@ function initAnnouncementMonitor() {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function escHtml(s) { return s?.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || ''; }
 
-// ===== LLM 配置管理 =====
-function loadLLMConfig() {
+// ===== LLM 配置管理（读后台数据库，无需前端配置）=====
+async function fetchLLMStatus() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch(e) {}
-  return { provider: '', model: '', apiKey: '' };
-}
-
-function saveLLMConfigLocal(config) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  updateLLMStatus(config);
-  // 同步到后端持久化存储，刷新不丢失
-  fetch(`${API_BASE}/api/llm-config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  }).catch(e => console.warn('LLM配置同步后端失败:', e));
-}
-
-// 从后端恢复 LLM 配置（刷新后 localStorage 被清除时使用）
-async function restoreLLMConfig() {
-  const local = loadLLMConfig();
-  if (local.provider && local.apiKey) return; // 本地已有配置
-  try {
-    const resp = await fetch(`${API_BASE}/api/llm-config`, { signal: AbortSignal.timeout(3000) });
-    const result = await resp.json();
-    if (result.success && result.config && result.config.provider && result.config.apiKey) {
-      // 从后端恢复到本地
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(result.config));
-      updateLLMStatus(result.config);
-      return result.config;
-    }
-  } catch(e) {
-    console.warn('从后端恢复LLM配置失败:', e);
-  }
-  return null;
-}
-
-function updateLLMStatus(config) {
-  const badge = document.getElementById('llmStatusBadge');
-  const text = document.getElementById('llmStatusText');
-  const warning = document.getElementById('llmWarning');
-  if (config.provider && config.apiKey) {
-    badge.className = 'llm-status on';
-    text.textContent = `${config.provider} · 已配置`;
-    warning.style.display = 'none';
-  } else {
-    badge.className = 'llm-status off';
-    text.textContent = '未配置 LLM';
-    warning.style.display = 'block';
-  }
-}
-
-async function fetchProviders() {
-  try {
-    const res = await fetch(`${API_BASE}/api/providers`, { signal: AbortSignal.timeout(5000) });
-    const data = await res.json();
-    if (data.success) {
-      providersData = data.providers;
-      renderProviderGrid();
-    }
-  } catch(e) {
-    console.warn('无法获取提供商列表:', e);
-    // 使用内嵌的备用列表
-    providersData = {
-      'DeepSeek': { models: [{'id':'deepseek-chat','label':'DeepSeek-V3'},{'id':'deepseek-reasoner','label':'DeepSeek-R1'}], default_model:'deepseek-chat' },
-      'OpenAI': { models: [{'id':'gpt-4o','label':'GPT-4o'},{'id':'gpt-4o-mini','label':'GPT-4o-mini'}], default_model:'gpt-4o-mini' },
-      '通义千问': { models: [{'id':'qwen-plus','label':'Qwen Plus'},{'id':'qwen-turbo','label':'Qwen Turbo'}], default_model:'qwen-plus' },
-    };
-    renderProviderGrid();
-  }
-}
-
-function renderProviderGrid() {
-  const grid = document.getElementById('providerGrid');
-  grid.innerHTML = Object.entries(providersData).map(([name, info]) => `
-    <div class="provider-card" data-provider="${escHtml(name)}" onclick="selectProvider('${escHtml(name)}')">
-      <span class="pc-name">${escHtml(name)}</span>
-      <span class="pc-sub">${info.models.map(m => escHtml(m.label)).join(' / ')}</span>
-    </div>
-  `).join('');
-}
-
-function selectProvider(name) {
-  selectedProvider = name;
-  // 更新 UI
-  document.querySelectorAll('.provider-card').forEach(el => {
-    el.classList.toggle('selected', el.dataset.provider === name);
-  });
-  // 更新模型下拉
-  const sel = document.getElementById('modelSelect');
-  const info = providersData[name];
-  sel.innerHTML = info.models.map(m =>
-    `<option value="${escHtml(m.id)}"${m.id === info.default_model ? ' selected' : ''}>${escHtml(m.label)}</option>`
-  ).join('');
-  selectedModel = info.default_model;
-  sel.onchange = () => { selectedModel = sel.value; };
-}
-
-function toggleKeyVisibility() {
-  const inp = document.getElementById('apiKeyInput');
-  const btn = document.getElementById('keyToggle');
-  if (inp.type === 'password') {
-    inp.type = 'text';
-    btn.textContent = '🙈';
-  } else {
-    inp.type = 'password';
-    btn.textContent = '👁';
-  }
-}
-
-function openLLMPanel() {
-  document.getElementById('llmPanel').classList.add('open');
-  document.getElementById('llmOverlay').classList.add('open');
-  // 如果还没加载提供商，先加载
-  if (!providersData) fetchProviders();
-  // 回填已保存的 API Key
-  const config = loadLLMConfig();
-  if (config.apiKey) {
-    document.getElementById('apiKeyInput').value = config.apiKey;
-  }
-}
-
-function closeLLMPanel() {
-  document.getElementById('llmPanel').classList.remove('open');
-  document.getElementById('llmOverlay').classList.remove('open');
-}
-
-function saveLLMConfig() {
-  const config = loadLLMConfig();
-  config.provider = selectedProvider || config.provider;
-  config.model = selectedModel || config.model;
-  config.apiKey = document.getElementById('apiKeyInput').value.trim() || config.apiKey;
-  if (!config.provider) { toast('请先选择服务商', 'err'); return; }
-  if (!config.apiKey) { toast('请输入 API Key', 'err'); return; }
-  saveLLMConfigLocal(config);
-  toast(`✅ 已保存：${config.provider} / ${config.model}`, 'ok');
-  closeLLMPanel();
-}
-
-async function testLLMConnection() {
-  const btn = document.getElementById('testBtn');
-  const provider = selectedProvider || loadLLMConfig().provider;
-  const apiKey = document.getElementById('apiKeyInput').value.trim() || loadLLMConfig().apiKey;
-  const model = selectedModel || loadLLMConfig().model;
-  if (!provider || !apiKey) { toast('请先填写服务商和 API Key', 'err'); return; }
-
-  btn.disabled = true;
-  btn.textContent = '🧪 测试中...';
-  try {
-    const res = await fetch(`${API_BASE}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'poster',
-        article: { title: '测试新闻标题', source: '测试', fullText: '这是一条测试新闻。', summary: '测试摘要', keywords: ['测试'] },
-        provider, api_key: apiKey, model,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-    const data = await res.json();
-    if (data.success) {
-      toast(`✅ 连接成功！${provider} / ${model}`, 'ok');
+    const resp = await fetch(`${API_BASE}/api/config`, { signal: AbortSignal.timeout(5000) });
+    const cfg = await resp.json();
+    currentLLMConfigured = !!cfg.configured;
+    const badge = document.getElementById('llmStatusBadge');
+    const text = document.getElementById('llmStatusText');
+    const warning = document.getElementById('llmWarning');
+    if (cfg.configured) {
+      badge.className = 'llm-status on';
+      text.textContent = `${cfg.provider} · 已配置`;
+      if (warning) warning.style.display = 'none';
     } else {
-      toast(`❌ 失败：${data.error?.slice(0, 80)}`, 'err');
+      badge.className = 'llm-status off';
+      text.textContent = 'LLM 未配置';
+      if (warning) warning.style.display = 'block';
     }
   } catch(e) {
-    toast(`❌ 网络错误：${e.message?.slice(0, 50)}`, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🧪 测试连接（发送一条验证请求）';
+    console.warn('无法获取LLM配置状态:', e);
   }
 }
 
@@ -3961,9 +3744,6 @@ function showPreview() {
     </div>
   `;
   document.getElementById('previewWrap').classList.add('show');
-  // 更新 LLM 警告
-  const config = loadLLMConfig();
-  document.getElementById('llmWarning').style.display = config.provider && config.apiKey ? 'none' : 'block';
 }
 
 // ===== 生成入口 =====
@@ -3984,52 +3764,41 @@ async function genOne(type) {
   if (!el) { el = document.createElement('div'); el.id = `out_${type}`; grid.appendChild(el); }
   el.className = `out-card ${type}`;
 
-  const config = loadLLMConfig();
-  const useLLM = !!(config.provider && config.apiKey);
-
   el.innerHTML = `
     <div class="out-header">
       <div class="out-icon">${typeIcon(type)}</div>
       <div class="out-title">
         <h4>${typeName(type)}</h4>
-        <p>${useLLM ? `AI (${escHtml(config.provider)}) 正在创作...` : '本地模板生成中...'}</p>
+        <p>AI 正在创作...</p>
       </div>
     </div>
     <div class="gen-loading">
       <div class="spinner"></div>
-      <p>${useLLM ? '🤖 AI 正在基于新闻内容创作高质量内容，请稍候...' : '⏳ 模板生成中...'}</p>
+      <p>🤖 AI 正在基于新闻内容创作高质量内容，请稍候...</p>
     </div>
   `;
 
   let content;
-  if (useLLM) {
-    try {
-      content = await callLLMGenerate(type, a, config);
-      content._llmUsed = true;
-      content._llmProvider = config.provider;
-      content._llmModel = config.model;
-    } catch(e) {
-      // LLM 失败时降级到本地模板
-      console.warn('LLM 生成失败，降级到本地模板:', e);
-      toast(`⚠️ AI 生成失败（${e.message?.slice(0,40)}），已使用本地模板`, 'err');
-      content = buildContent(type, a);
-      content._llmUsed = false;
-      content._llmError = e.message;
-    }
-  } else {
+  try {
+    content = await callLLMGenerate(type, a);
+    content._llmUsed = true;
+  } catch(e) {
+    console.warn('LLM 生成失败，降级到本地模板:', e);
+    toast(`⚠️ AI 生成失败（${e.message?.slice(0,40)}），已使用本地模板`, 'err');
     content = buildContent(type, a);
     content._llmUsed = false;
+    content._llmError = e.message;
   }
 
   el.className = `out-card ${type}`;
   el.innerHTML = renderCard(type, content, a);
 }
 
-async function callLLMGenerate(type, article, config) {
-  console.log(`[callLLMGenerate] provider=${config.provider} model=${config.model} type=${type}`);
+async function callLLMGenerate(type, article) {
   const res = await fetch(`${API_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({
       type,
       article: {
@@ -4040,27 +3809,19 @@ async function callLLMGenerate(type, article, config) {
         keywords: article.keywords,
         url: article.url,
       },
-      provider: config.provider,
-      api_key: config.apiKey,
-      model: config.model,
       extra_requirement: getExtraRequirement(),
     }),
-    signal: AbortSignal.timeout(120000), // 2分钟超时
+    signal: AbortSignal.timeout(120000),
   });
   const data = await res.json();
-  // 区分不同错误类型，给用户精准提示
   if (!data.success) {
     const msg = data.error || '';
-    if (msg.includes('不支持的 LLM') || msg.includes('不支持的提供商')) {
-      throw new Error(`LLM服务商 "${config.provider}" 不受支持，请重新选择并保存配置`);
-    }
-    if (msg.includes('API Key') || msg.includes('api_key') || msg.includes('密钥')) {
-      throw new Error(`API Key 无效或已过期，请检查配置`);
+    if (msg.includes('LLM 未配置') || msg.includes('API Key')) {
+      throw new Error(`LLM 未配置，请到后台设置`);
     }
     if (msg.includes('timeout') || msg.includes('超时')) {
-      throw new Error(`LLM 请求超时，模型响应过慢`);
+      throw new Error(`LLM 请求超时`);
     }
-    // 后端返回的业务错误（如 provider 不匹配）
     throw new Error(msg || '生成失败');
   }
   return data.content;
@@ -4794,41 +4555,17 @@ document.getElementById('ntInterval').addEventListener('change', ntSaveSearchSet
 
 // ===== 初始化 =====
 (function init() {
-  const config = loadLLMConfig();
-  updateLLMStatus(config);
-  // 恢复配置到面板
-  if (config.provider) selectedProvider = config.provider;
-  if (config.model) selectedModel = config.model;
-  // 异步加载提供商列表，并从后端恢复 LLM 配置
-  fetchProviders().then(async () => {
-    if (selectedProvider) {
-      selectProvider(selectedProvider);
-      if (selectedModel) {
-        document.getElementById('modelSelect').value = selectedModel;
-      }
-    }
-    // 尝试从后端恢复 LLM 配置（刷新后不丢失）
-    const restored = await restoreLLMConfig();
-    if (restored && restored.provider) {
-      selectedProvider = restored.provider;
-      selectedModel = restored.model;
-      if (providersData && providersData[restored.provider]) {
-        selectProvider(restored.provider);
-        if (restored.model) {
-          document.getElementById('modelSelect').value = restored.model;
-        }
-      }
-    }
-  });
+  // 异步获取 LLM 配置状态（后台数据库）
+  fetchLLMStatus();
   // 初始化股价监控
   initStockTicker();
   // 初始化公告监控
   initAnnouncementMonitor();
-  // 恢复新闻监控状态（刷新页面不丢失）
+  // 恢复新闻监控状态
   ntRestoreMonitorState();
   // 初始化粒子背景
   initParticles();
-  // 恢复上次访问的 Tab，确保侧边栏显示状态正确
+  // 恢复上次访问的 Tab
   const savedTab = sessionStorage.getItem('mainTab') || 'dashboard';
   switchMainTab(savedTab);
 })();
