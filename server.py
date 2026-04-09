@@ -36,6 +36,85 @@ except ImportError:
     # 兼容未初始化的情况
     from api.admin_db import check_admin, change_password, get_llm_config, save_llm_config, clear_llm_config, get_all_admins
 
+
+# ============================================================
+#  Upstash Redis 配置存储（Vercel 生产环境用）
+#  本地开发 fallback 到 SQLite
+# ============================================================
+UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
+UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
+UPSTASH_KEY = 'llm_config'
+
+
+def _upstash_headers():
+    return {'Authorization': f'Bearer {UPSTASH_TOKEN}', 'Content-Type': 'application/json'}
+
+
+def get_llm_config_redis() -> dict:
+    """从 Upstash 读取 LLM 配置，失败则回退 SQLite"""
+    if not UPSTASH_URL:
+        return get_llm_config()
+    try:
+        r = requests.get(f'{UPSTASH_URL}/get/{UPSTASH_KEY}', headers=_upstash_headers(), timeout=5)
+        data = r.json()
+        val = data.get('result')
+        if val:
+            return json.loads(val)
+    except Exception:
+        pass
+    return get_llm_config()
+
+
+def save_llm_config_redis(provider: str, api_key: str, model: str, extra_requirement: str = '') -> bool:
+    """保存 LLM 配置到 Upstash，失败则回退 SQLite"""
+    payload = json.dumps({'key': UPSTASH_KEY, 'value': json.dumps({
+        'provider': provider, 'api_key': api_key, 'model': model, 'extra_requirement': extra_requirement
+    }), 'ex': 31536000})  # 1年过期
+    if not UPSTASH_URL:
+        save_llm_config(provider, api_key, model, extra_requirement)
+        return True
+    try:
+        r = requests.post(UPSTASH_URL, headers=_upstash_headers(), data=payload, timeout=5)
+        if r.status_code == 200:
+            return True
+    except Exception:
+        pass
+    save_llm_config(provider, api_key, model, extra_requirement)
+    return True
+
+
+def clear_llm_config_redis() -> bool:
+    """清空 Upstash LLM 配置，失败则回退 SQLite"""
+    if not UPSTASH_URL:
+        clear_llm_config()
+        return True
+    payload = json.dumps({'key': UPSTASH_KEY, 'command': ['DEL', UPSTASH_KEY]})
+    try:
+        requests.post(UPSTASH_URL, headers=_upstash_headers(), data=payload, timeout=5)
+    except Exception:
+        pass
+    clear_llm_config()
+    return True
+
+
+def _sync_sqlite_to_redis():
+    """启动时若Upstash为空，尝试从SQLite同步已有配置"""
+    if not UPSTASH_URL:
+        return
+    try:
+        r = requests.get(f'{UPSTASH_URL}/get/{UPSTASH_KEY}', headers=_upstash_headers(), timeout=5)
+        if r.json().get('result'):
+            return  # Upstash已有数据，跳过
+    except Exception:
+        pass
+    # Upstash为空，尝试从SQLite同步
+    cfg = get_llm_config()
+    if cfg.get('provider') and cfg.get('api_key'):
+        save_llm_config_redis(cfg['provider'], cfg['api_key'], cfg['model'], cfg.get('extra_requirement', ''))
+
+
+_sync_sqlite_to_redis()
+
 # ============================================================
 #  LLM 服务抽象层 —— 支持多家 OpenAI 兼容 API
 # ============================================================
@@ -2365,7 +2444,7 @@ def admin_required(f):
 def admin_llm_config():
     """获取 / 保存 / 清空 LLM 配置（需登录）"""
     if request.method == 'GET':
-        cfg = get_llm_config()
+        cfg = get_llm_config_redis()
         return jsonify({
             "success": True,
             "config": {
@@ -2378,7 +2457,7 @@ def admin_llm_config():
         })
 
     if request.method == 'DELETE':
-        clear_llm_config()
+        clear_llm_config_redis()
         return jsonify({"success": True})
 
     data = request.get_json(force=True)
@@ -2396,7 +2475,7 @@ def admin_llm_config():
     if provider not in PROVIDERS:
         return jsonify({"success": False, "error": f"不支持的 LLM 服务商: {provider}"}), 400
 
-    save_llm_config(provider, api_key, model, extra_requirement)
+    save_llm_config_redis(provider, api_key, model, extra_requirement)
     return jsonify({"success": True})
 
 
@@ -2426,7 +2505,7 @@ def admin_change_password():
 @app.route('/api/config', methods=['GET'])
 def public_llm_config():
     """前端获取当前 LLM 配置（不含 api_key）"""
-    cfg = get_llm_config()
+    cfg = get_llm_config_redis()
     return jsonify({
         "provider": cfg.get('provider', ''),
         "model": cfg.get('model', ''),
@@ -2460,8 +2539,8 @@ def generate_content():
     if request.method == 'OPTIONS':
         return '', 204
 
-    # 读数据库全局配置
-    cfg = get_llm_config()
+    # 读数据库全局配置（优先Upstash，备选SQLite）
+    cfg = get_llm_config_redis()
     provider_name = cfg.get('provider', '').strip()
     api_key = cfg.get('api_key', '').strip()
     db_model = cfg.get('model', '').strip()
