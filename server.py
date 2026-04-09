@@ -10,7 +10,7 @@
 import sys
 import os
 
-from flask import Flask, request, jsonify, session, redirect, send_file, make_response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
@@ -25,95 +25,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', os.urandom(32).hex())
-CORS(app, supports_credentials=True)
-
-# 导入后台数据库模块
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
-try:
-    from admin_db import check_admin, change_password, get_llm_config, save_llm_config, clear_llm_config, get_all_admins
-except ImportError:
-    # 兼容未初始化的情况
-    from api.admin_db import check_admin, change_password, get_llm_config, save_llm_config, clear_llm_config, get_all_admins
-
-
-# ============================================================
-#  Upstash Redis 配置存储（Vercel 生产环境用）
-#  本地开发 fallback 到 SQLite
-# ============================================================
-UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
-UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
-UPSTASH_KEY = 'llm_config'
-
-
-def _upstash_headers():
-    return {'Authorization': f'Bearer {UPSTASH_TOKEN}', 'Content-Type': 'application/json'}
-
-
-def get_llm_config_redis() -> dict:
-    """从 Upstash 读取 LLM 配置，失败则回退 SQLite"""
-    if not UPSTASH_URL:
-        return get_llm_config()
-    try:
-        r = requests.get(f'{UPSTASH_URL}/get/{UPSTASH_KEY}', headers=_upstash_headers(), timeout=5)
-        data = r.json()
-        val = data.get('result')
-        if val:
-            return json.loads(val)
-    except Exception:
-        pass
-    return get_llm_config()
-
-
-def save_llm_config_redis(provider: str, api_key: str, model: str, extra_requirement: str = '') -> bool:
-    """保存 LLM 配置到 Upstash，失败则回退 SQLite"""
-    payload = json.dumps({'key': UPSTASH_KEY, 'value': json.dumps({
-        'provider': provider, 'api_key': api_key, 'model': model, 'extra_requirement': extra_requirement
-    }), 'ex': 31536000})  # 1年过期
-    if not UPSTASH_URL:
-        save_llm_config(provider, api_key, model, extra_requirement)
-        return True
-    try:
-        r = requests.post(UPSTASH_URL, headers=_upstash_headers(), data=payload, timeout=5)
-        if r.status_code == 200:
-            return True
-    except Exception:
-        pass
-    save_llm_config(provider, api_key, model, extra_requirement)
-    return True
-
-
-def clear_llm_config_redis() -> bool:
-    """清空 Upstash LLM 配置，失败则回退 SQLite"""
-    if not UPSTASH_URL:
-        clear_llm_config()
-        return True
-    payload = json.dumps({'key': UPSTASH_KEY, 'command': ['DEL', UPSTASH_KEY]})
-    try:
-        requests.post(UPSTASH_URL, headers=_upstash_headers(), data=payload, timeout=5)
-    except Exception:
-        pass
-    clear_llm_config()
-    return True
-
-
-def _sync_sqlite_to_redis():
-    """启动时若Upstash为空，尝试从SQLite同步已有配置"""
-    if not UPSTASH_URL:
-        return
-    try:
-        r = requests.get(f'{UPSTASH_URL}/get/{UPSTASH_KEY}', headers=_upstash_headers(), timeout=5)
-        if r.json().get('result'):
-            return  # Upstash已有数据，跳过
-    except Exception:
-        pass
-    # Upstash为空，尝试从SQLite同步
-    cfg = get_llm_config()
-    if cfg.get('provider') and cfg.get('api_key'):
-        save_llm_config_redis(cfg['provider'], cfg['api_key'], cfg['model'], cfg.get('extra_requirement', ''))
-
-
-_sync_sqlite_to_redis()
+CORS(app)
 
 # ============================================================
 #  LLM 服务抽象层 —— 支持多家 OpenAI 兼容 API
@@ -2388,132 +2300,8 @@ def search_news_multi_keywords(keywords, count_per_keyword=5, include_foreign=Tr
 
 
 # ============================================================
-#  后台管理路由
+#  API 路由
 # ============================================================
-
-@app.route('/admin', methods=['GET'])
-def admin_page():
-    """后台管理登录页"""
-    if session.get('admin'):
-        return send_file('admin.html')
-    return send_file('admin_login.html')
-
-
-@app.route('/api/admin/login', methods=['POST'])
-def admin_login():
-    """管理员登录"""
-    data = request.get_json(force=True)
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-
-    if not username or not password:
-        return jsonify({"success": False, "error": "请输入用户名和密码"}), 400
-
-    if check_admin(username, password):
-        session['admin'] = username
-        return jsonify({"success": True, "username": username})
-    return jsonify({"success": False, "error": "用户名或密码错误"}), 401
-
-
-@app.route('/api/admin/logout', methods=['POST'])
-def admin_logout():
-    """退出登录"""
-    session.pop('admin', None)
-    return jsonify({"success": True})
-
-
-@app.route('/api/admin/check', methods=['GET'])
-def admin_check():
-    """检查登录状态"""
-    return jsonify({"success": True, "logged_in": session.get('admin', '') != '', "username": session.get('admin', '')})
-
-
-def admin_required(f):
-    """登录装饰器"""
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get('admin'):
-            return jsonify({"success": False, "error": "请先登录"}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-
-@app.route('/api/admin/config', methods=['GET', 'POST', 'DELETE'])
-@admin_required
-def admin_llm_config():
-    """获取 / 保存 / 清空 LLM 配置（需登录）"""
-    if request.method == 'GET':
-        cfg = get_llm_config_redis()
-        return jsonify({
-            "success": True,
-            "config": {
-                "provider": cfg.get('provider', ''),
-                "model": cfg.get('model', ''),
-                "api_key": cfg.get('api_key', ''),
-                "api_key_set": bool(cfg.get('api_key', '')),
-                "extra_requirement": cfg.get('extra_requirement', ''),
-            }
-        })
-
-    if request.method == 'DELETE':
-        clear_llm_config_redis()
-        return jsonify({"success": True})
-
-    data = request.get_json(force=True)
-    provider = data.get('provider', '').strip()
-    api_key = data.get('api_key', '').strip()
-    model = data.get('model', '').strip()
-    extra_requirement = data.get('extra_requirement', '').strip()
-
-    if not provider:
-        return jsonify({"success": False, "error": "请选择服务商"}), 400
-    if not api_key:
-        return jsonify({"success": False, "error": "请填写 API Key"}), 400
-    if not model:
-        return jsonify({"success": False, "error": "请选择模型"}), 400
-    if provider not in PROVIDERS:
-        return jsonify({"success": False, "error": f"不支持的 LLM 服务商: {provider}"}), 400
-
-    save_llm_config_redis(provider, api_key, model, extra_requirement)
-    return jsonify({"success": True})
-
-
-@app.route('/api/admin/password', methods=['POST'])
-@admin_required
-def admin_change_password():
-    """修改密码（需登录）"""
-    data = request.get_json(force=True)
-    old_pw = data.get('old_password', '')
-    new_pw = data.get('new_password', '')
-
-    if not old_pw or not new_pw:
-        return jsonify({"success": False, "error": "请填写所有字段"}), 400
-    if len(new_pw) < 6:
-        return jsonify({"success": False, "error": "新密码长度不能少于 6 位"}), 400
-    if not check_admin(session['admin'], old_pw):
-        return jsonify({"success": False, "error": "原密码错误"}), 400
-
-    change_password(session['admin'], new_pw)
-    return jsonify({"success": True})
-
-
-# ============================================================
-#  公开 API（无需登录）
-# ============================================================
-
-@app.route('/api/config', methods=['GET'])
-def public_llm_config():
-    """前端获取当前 LLM 配置（不含 api_key）"""
-    cfg = get_llm_config_redis()
-    return jsonify({
-        "provider": cfg.get('provider', ''),
-        "model": cfg.get('model', ''),
-        "api_key": cfg.get('api_key', ''),   # 前端不展示，仅透传给后端
-        "extra_requirement": cfg.get('extra_requirement', ''),
-        "configured": bool(cfg.get('provider') and cfg.get('api_key')),
-    })
-
 
 @app.route('/api/providers', methods=['GET'])
 def list_providers():
@@ -2529,52 +2317,49 @@ def list_providers():
     return jsonify({"success": True, "providers": result})
 
 
-# ============================================================
-#  内容生成
-# ============================================================
-
 @app.route('/api/generate', methods=['POST', 'OPTIONS'])
 def generate_content():
-    """核心接口：调用 LLM 生成内容（从数据库读取配置）"""
+    """核心接口：调用 LLM 生成内容"""
     if request.method == 'OPTIONS':
         return '', 204
 
-    # 读数据库全局配置（优先Upstash，备选SQLite）
-    cfg = get_llm_config_redis()
-    provider_name = cfg.get('provider', '').strip()
-    api_key = cfg.get('api_key', '').strip()
-    db_model = cfg.get('model', '').strip()
-    extra_requirement = cfg.get('extra_requirement', '').strip()
-
-    data = request.get_json(force=True) or {}
-    content_type = data.get('type', '').strip()
+    data = request.get_json(force=True)
+    content_type = data.get('type', '').strip()       # poster / video / article
     article = data.get('article', {})
-
-    # 允许前端通过 extra_requirement 追加要求（覆盖/追加到全局配置）
-    if data.get('extra_requirement'):
-        extra_requirement = data.get('extra_requirement', '').strip()
+    provider_name = data.get('provider', '').strip()
+    api_key = data.get('api_key', '').strip()
+    model = data.get('model', '').strip()
+    extra_requirement = data.get('extra_requirement', '').strip()  # 用户附加要求
 
     # 参数校验
     if content_type not in SYSTEM_PROMPTS:
-        return jsonify({"success": False, "error": f"不支持的内容类型: {content_type}"}), 400
+        return jsonify({"success": False, "error": f"不支持的内容类型: {content_type}，可选: {', '.join(SYSTEM_PROMPTS.keys())}"}), 400
     if not article or not article.get('title'):
         return jsonify({"success": False, "error": "缺少新闻数据"}), 400
     if not provider_name or provider_name not in PROVIDERS:
-        return jsonify({"success": False, "error": f"LLM 未配置，请到后台设置"}), 400
+        return jsonify({"success": False, "error": f"无效的 LLM 服务商，可选: {', '.join(PROVIDERS.keys())}"}), 400
     if not api_key:
-        return jsonify({"success": False, "error": f"LLM API Key 未配置，请到后台设置"}), 400
+        return jsonify({"success": False, "error": "请提供 API Key"}), 400
 
     try:
-        llm = get_provider(provider_name, api_key, db_model or None)
+        # 实例化 LLM 提供商
+        llm = get_provider(provider_name, api_key, model or None)
+
+        # 构建 prompt
         system_prompt = SYSTEM_PROMPTS[content_type]
         user_prompt = build_user_prompt(content_type, article, extra_requirement)
+
+        # 调用 LLM
         raw_response = llm.chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             temperature=0.75 if content_type == 'video' else 0.7,
             max_tokens=4096 if content_type != 'article' else 8192,
         )
+
+        # 解析 JSON 响应
         parsed = parse_llm_json(raw_response)
+
         return jsonify({
             "success": True,
             "type": content_type,
@@ -2582,6 +2367,7 @@ def generate_content():
             "provider": provider_name,
             "model": llm.model,
         })
+
     except Exception as e:
         import traceback
         print(f"[generate] provider={provider_name!r} model={model!r} 错误: {e}")
