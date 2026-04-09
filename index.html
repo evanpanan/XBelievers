@@ -571,8 +571,16 @@
     .nt-item-rank.overseas { background:rgba(99,102,241,.15);color:var(--primary-light); }
 
     .nt-item-body { flex:1;min-width:0; }
-    .nt-item-title { font-size:13px;font-weight:600;line-height:1.55;color:var(--text);margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;transition:color .2s; }
+    .nt-item-title {
+      font-size:13px;font-weight:600;line-height:1.55;color:var(--text);margin-bottom:4px;
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+      cursor:pointer;transition:color .2s;
+      text-decoration:none;color:inherit;
+    }
     .nt-item-title:hover { color:var(--primary-light); }
+    /* 外链图标 */
+    .nt-item-ext-icon { font-size:10px;opacity:.5;margin-left:3px;vertical-align:middle;flex-shrink:0; }
+    .nt-item-title:hover .nt-item-ext-icon { opacity:.9; }
     /* 双语标题样式 */
     .nt-item-title-bilingual {
       margin-bottom:2px;cursor:pointer;
@@ -4018,6 +4026,7 @@ async function genOne(type) {
 }
 
 async function callLLMGenerate(type, article, config) {
+  console.log(`[callLLMGenerate] provider=${config.provider} model=${config.model} type=${type}`);
   const res = await fetch(`${API_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4039,7 +4048,21 @@ async function callLLMGenerate(type, article, config) {
     signal: AbortSignal.timeout(120000), // 2分钟超时
   });
   const data = await res.json();
-  if (!data.success) throw new Error(data.error || '生成失败');
+  // 区分不同错误类型，给用户精准提示
+  if (!data.success) {
+    const msg = data.error || '';
+    if (msg.includes('不支持的 LLM') || msg.includes('不支持的提供商')) {
+      throw new Error(`LLM服务商 "${config.provider}" 不受支持，请重新选择并保存配置`);
+    }
+    if (msg.includes('API Key') || msg.includes('api_key') || msg.includes('密钥')) {
+      throw new Error(`API Key 无效或已过期，请检查配置`);
+    }
+    if (msg.includes('timeout') || msg.includes('超时')) {
+      throw new Error(`LLM 请求超时，模型响应过慢`);
+    }
+    // 后端返回的业务错误（如 provider 不匹配）
+    throw new Error(msg || '生成失败');
+  }
   return data.content;
 }
 
@@ -4127,9 +4150,12 @@ function renderCard(type, c, a) {
 
   // 如果 LLM 返回了 _raw（JSON 解析失败）
   if (c._raw) {
+    // 对原始文本做简单清理：去掉代码块标记，转为可读文字
+    const cleanedRaw = (c._text || '')
+      .replace(/```json\s*/gi, '').replace(/```/g, '')
+      .trim();
     return header + `<div class="out-body">
-      <div class="copy-blk"><div class="blk-lbl">AI 原始输出</div><p style="white-space:pre-wrap">${escHtml(c._text)}</p></div>
-      <div class="copy-blk" style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2)"><div class="blk-lbl" style="color:var(--accent)">⚠️ 解析提示</div>${escHtml(c._parse_error)}</div>
+      <div class="copy-blk"><div class="blk-lbl">AI 输出内容</div><p style="white-space:pre-wrap;line-height:1.9">${escHtml(cleanedRaw)}</p></div>
       ${srcRef}
     </div>`;
   }
@@ -4167,7 +4193,7 @@ function renderPosterCard(header, c, a, srcRef) {
         <span class="pv-date">${escHtml(date)}</span>
       </div>
     </div>
-    <div class="copy-blk"><div class="blk-lbl">正文文案</div>${escHtml(bodyCopy).replace(/\n/g, '<br>')}</div>
+    <div class="copy-blk"><div class="blk-lbl">正文文案</div>${escHtml(bodyCopy.replace(/```[a-zA-Z]*\n?/g,'').replace(/```/g,'')).replace(/\n/g, '<br>')}</div>
     ${hashtags.length ? `<div class="copy-blk"><div class="blk-lbl">话题标签</div>${escHtml(typeof hashtags === 'string' ? hashtags : hashtags.join(' '))}</div>` : ''}
     ${srcRef}
   </div>`;
@@ -4189,7 +4215,7 @@ function renderVideoCard(header, c, a, srcRef) {
       ${segments.map(s => `
         <div class="sc-item">
           <div class="sc-time">${escHtml(s.time)}${s.phase ? `<span class="sc-phase">${escHtml(s.phase)}</span>` : ''}</div>
-          <div class="sc-text">${escHtml(s.script || s.text || '')}</div>
+          <div class="sc-text">${escHtml((s.script || s.text || '').replace(/```[a-zA-Z]*\n?/g,'').replace(/```/g,''))}</div>
           <div class="sc-notes">
             ${s.visual ? `<div class="sc-note"><strong>🎬 画面：</strong>${escHtml(s.visual)}</div>` : ''}
             ${s.sound ? `<div class="sc-note"><strong>🔊 音效：</strong>${escHtml(s.sound)}</div>` : ''}
@@ -4211,6 +4237,26 @@ function renderArticleCard(header, c, a, srcRef) {
   const sections = c.sections || [];
   const keyInsight = c.key_insight || '';
 
+  // 将章节 body 文本转为 HTML（支持 **加粗**、换行，并清理代码块标记）
+  function bodyToHtml(raw) {
+    if (!raw) return '';
+    // 1. 去除 ```xxx ... ``` 代码块（把内容保留，仅移除标记行）
+    let text = raw.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '');
+    // 2. 转义 HTML 特殊字符
+    text = escHtml(text);
+    // 3. 渲染 **加粗**
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // 4. 渲染 # 标题（行首的 #）
+    text = text.replace(/^#{1,3}\s+(.+)$/gm, '<strong style="font-size:14px">$1</strong>');
+    // 5. 渲染无序列表（- 或 * 开头的行）
+    text = text.replace(/^[\-\*]\s+(.+)$/gm, '• $1');
+    // 6. 段落分隔（双换行变成段落）
+    text = text.replace(/\n\n+/g, '</p><p>');
+    // 7. 单换行变成换行符
+    text = text.replace(/\n/g, '<br>');
+    return `<p>${text}</p>`;
+  }
+
   return header + `<div class="out-body">
     <div class="art-title-bar">
       <h4>${escHtml(title)}</h4>
@@ -4219,8 +4265,8 @@ function renderArticleCard(header, c, a, srcRef) {
     ${wordCount ? `<div class="art-meta"><span>📖 ${escHtml(wordCount)}</span><span>⏱ 约 8 分钟</span><span>📅 ${escHtml(a.date || new Date().toLocaleDateString('zh-CN'))}</span></div>` : ''}
     <div class="art-body">
       ${sections.map(s => `
-        <h5>${escHtml(s.heading)}</h5>
-        ${s.body ? `<p>${escHtml(s.body).replace(/\n\n/g,'</p><p>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</p>` : ''}
+        <h5>${escHtml(s.heading || '')}</h5>
+        ${s.body ? bodyToHtml(s.body) : ''}
       `).join('')}
     </div>
     ${keyInsight ? `<div class="art-insight">💡 核心观点：${escHtml(keyInsight)}</div>` : ''}
@@ -4257,12 +4303,14 @@ function buildNtItemHtml(a, globalIdx, isNew) {
   const titleEn = a.title_en || '';
   const titleCn = a.title_cn || '';
   if (isForeign && titleEn) {
-    titleHtml = `<div class="nt-item-title-bilingual" data-idx="${globalIdx}" onclick="ntToggleArticle(this, ${globalIdx})">
-      <div class="nt-item-title-en">${escHtml(titleEn)}</div>
+    const extIcon = `<span class="nt-item-ext-icon" aria-hidden="true">↗</span>`;
+    titleHtml = `<a class="nt-item-title-bilingual" href="${escHtml(a.url || '#')}" target="_blank" rel="noopener noreferrer" data-idx="${globalIdx}" onclick="ntToggleArticle(this, ${globalIdx}); event.stopPropagation();">
+      <div class="nt-item-title-en">${escHtml(titleEn)}${extIcon}</div>
       ${titleCn ? `<div class="nt-item-title-cn">中文：${escHtml(titleCn)}</div>` : ''}
-    </div>`;
+    </a>`;
   } else {
-    titleHtml = `<div class="nt-item-title" data-idx="${globalIdx}" onclick="ntToggleArticle(this, ${globalIdx})">${escHtml(a.title)}</div>`;
+    const extIcon = `<span class="nt-item-ext-icon" aria-hidden="true">↗</span>`;
+    titleHtml = `<a class="nt-item-title" href="${escHtml(a.url || '#')}" target="_blank" rel="noopener noreferrer" data-idx="${globalIdx}" onclick="ntToggleArticle(this, ${globalIdx}); event.stopPropagation();">${escHtml(a.title)}${extIcon}</a>`;
   }
 
   const matchedKw = a.matched_keywords || (a.matched_keyword ? [a.matched_keyword] : []);
@@ -4472,12 +4520,14 @@ async function ntSearch(isAutoRefresh = false) {
       const titleEn = a.title_en || '';
       const titleCn = a.title_cn || '';
       if (isForeign && titleEn) {
-        titleHtml = `<div class="nt-item-title-bilingual" data-idx="${i}" onclick="ntToggleArticle(this, ${i})">
-          <div class="nt-item-title-en">${escHtml(titleEn)}</div>
+        const extIcon = `<span class="nt-item-ext-icon" aria-hidden="true">↗</span>`;
+        titleHtml = `<a class="nt-item-title-bilingual" href="${escHtml(a.url || '#')}" target="_blank" rel="noopener noreferrer" data-idx="${i}" onclick="ntToggleArticle(this, ${i}); event.stopPropagation();">
+          <div class="nt-item-title-en">${escHtml(titleEn)}${extIcon}</div>
           ${titleCn ? `<div class="nt-item-title-cn">中文：${escHtml(titleCn)}</div>` : ''}
-        </div>`;
+        </a>`;
       } else {
-        titleHtml = `<div class="nt-item-title" data-idx="${i}" onclick="ntToggleArticle(this, ${i})">${escHtml(a.title)}</div>`;
+        const extIcon = `<span class="nt-item-ext-icon" aria-hidden="true">↗</span>`;
+        titleHtml = `<a class="nt-item-title" href="${escHtml(a.url || '#')}" target="_blank" rel="noopener noreferrer" data-idx="${i}" onclick="ntToggleArticle(this, ${i}); event.stopPropagation();">${escHtml(a.title)}${extIcon}</a>`;
       }
 
       // 匹配的关键词标签

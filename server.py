@@ -2369,33 +2369,93 @@ def generate_content():
         })
 
     except Exception as e:
+        import traceback
+        print(f"[generate] provider={provider_name!r} model={model!r} 错误: {e}")
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 def parse_llm_json(raw_text):
-    """从 LLM 响应中提取 JSON（兼容 markdown code block 包裹）"""
+    """从 LLM 响应中提取 JSON（多策略，兼容各种 LLM 输出格式）"""
     text = raw_text.strip()
 
-    # 尝试提取 ```json ... ``` 代码块
-    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
-    if json_match:
-        text = json_match.group(1).strip()
-
-    # 尝试提取 { ... }
-    brace_start = text.find('{')
-    brace_end = text.rfind('}')
-    if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
-        text = text[brace_start:brace_end + 1]
-
+    # 策略1：直接尝试解析（LLM 有时直接输出干净 JSON）
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        # JSON 解析失败，返回原始文本
-        return {
-            "_raw": True,
-            "_text": raw_text,
-            "_parse_error": f"JSON解析失败: {str(e)}",
-        }
+    except json.JSONDecodeError:
+        pass
+
+    # 策略2：提取 ```json / ``` 包裹的代码块，并清理内部代码块标记
+    # 正确处理 LLM 在 body 里嵌入代码块（如 ```python...```）的情况
+    for pattern in [
+        r'```json\s*\n([\s\S]*?)\n```',           # ```json\n{...}\n```
+        r'```\s*\n([\s\S]*?)\n```',            # ```\n{...}\n```
+        r'```json\s*([\s\S]*?)\s*```',            # ```json{...}```（无换行）
+        r'```\s*([\s\S]*?)\s*```',               # ```{...}```（无换行）
+    ]:
+        m = re.search(pattern, text)
+        if m:
+            candidate = m.group(1).strip()
+            # 移除代码块内的子代码块标记（把 ```lang ... ``` 整体删除，保留正文内容）
+            # 先处理有多行的（``` 单独一行）
+            candidate = re.sub(r'\n?\s*```[a-zA-Z]*[^\n]*\n', '\n', candidate)
+            # 再处理 ``` 紧跟前文的（在一行内）
+            candidate = re.sub(r'`{3}[a-zA-Z]*', '', candidate)
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    # 策略3：用括号平衡算法提取最外层 { ... }（比 rfind 更准确）
+    brace_start = text.find('{')
+    if brace_start != -1:
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i, ch in enumerate(text[brace_start:], start=brace_start):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[brace_start:i + 1]
+                    # 策略3提取后同样清理代码块标记
+                    candidate = re.sub(r'\n?\s*```[a-zA-Z]*[^\n]*\n', '\n', candidate)
+                    candidate = re.sub(r'`{3}[a-zA-Z]*', '', candidate)
+                    try:
+                        return json.loads(candidate)
+                    except json.JSONDecodeError:
+                        break  # 匹配到了但解析失败，继续下一策略
+
+    # 策略4：粗暴 rfind + 全局代码块清理（兜底）
+    brace_start = text.find('{')
+    brace_end = text.rfind('}')
+    if brace_start != -1 and brace_end > brace_start:
+        candidate = text[brace_start:brace_end + 1]
+        candidate = re.sub(r'\n?\s*```[a-zA-Z]*[^\n]*\n', '\n', candidate)
+        candidate = re.sub(r'`{3}[a-zA-Z]*', '', candidate)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    # 所有策略失败，返回原始文本标记
+    return {
+        "_raw": True,
+        "_text": raw_text,
+        "_parse_error": "JSON解析失败：LLM 未按格式输出，已降级展示原始内容",
+    }
 
 
 @app.route('/api/fetch', methods=['POST', 'OPTIONS'])
