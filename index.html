@@ -1867,12 +1867,12 @@
   <!-- K线迷你图 -->
   <div class="stock-kline-area">
     <div class="stock-kline-label">
-      <span>K线走势</span>
+      <span data-i18n="stock_kline_label">K线走势</span>
       <div class="stock-kline-period">
-        <button class="active" onclick="loadKline('daily',60,this)">日K</button>
-        <button onclick="loadKline('daily',120,this)">季K</button>
-        <button onclick="loadKline('daily',250,this)">年K</button>
-        <button onclick="loadKline('4h',60,this)">4H</button>
+        <button class="active" onclick="loadKline('daily',60,this)" data-i18n="stock_kline_day">日K</button>
+        <button onclick="loadKline('daily',120,this)" data-i18n="stock_kline_quarter">季K</button>
+        <button onclick="loadKline('daily',250,this)" data-i18n="stock_kline_year">年K</button>
+        <button onclick="loadKline('4h',60,this)" data-i18n="kline_4h">4H</button>
       </div>
     </div>
     <canvas class="stock-kline-canvas" id="stockKlineCanvas" onclick="openKlineModal()"></canvas>
@@ -1888,22 +1888,22 @@
 <div class="kline-modal-overlay" id="klineModalOverlay" onclick="if(event.target===this)closeKlineModal()">
   <div class="kline-modal">
     <div class="kline-modal-head">
-      <h3>📈 XMAX K线图</h3>
+      <h3 data-i18n="kline_modal_title">📈 XMAX K线图</h3>
       <div class="kline-modal-period">
-        <button class="active" onclick="loadKlineModal('daily',60,this)">日K 60日</button>
-        <button onclick="loadKlineModal('daily',120,this)">日K 120日</button>
-        <button onclick="loadKlineModal('daily',250,this)">日K 1年</button>
-        <button onclick="loadKlineModal('4h',90,this)">4H</button>
+        <button class="active" onclick="loadKlineModal('daily',60,this)" data-i18n="kline_day_60">日K 60日</button>
+        <button onclick="loadKlineModal('daily',120,this)" data-i18n="kline_day_120">日K 120日</button>
+        <button onclick="loadKlineModal('daily',250,this)" data-i18n="kline_day_1y">日K 1年</button>
+        <button onclick="loadKlineModal('4h',90,this)" data-i18n="kline_4h">4H</button>
       </div>
       <button class="kline-modal-close" onclick="closeKlineModal()">✕</button>
     </div>
     <div class="kline-modal-info" id="klineModalInfo">
-      <div class="kline-modal-stat"><div class="kline-modal-stat-label">开盘</div><div class="kline-modal-stat-value" id="kmiOpen">--</div></div>
-      <div class="kline-modal-stat"><div class="kline-modal-stat-label">最高</div><div class="kline-modal-stat-value" id="kmiHigh">--</div></div>
-      <div class="kline-modal-stat"><div class="kline-modal-stat-label">最低</div><div class="kline-modal-stat-value" id="kmiLow">--</div></div>
-      <div class="kline-modal-stat"><div class="kline-modal-stat-label">收盘</div><div class="kline-modal-stat-value" id="kmiClose">--</div></div>
-      <div class="kline-modal-stat"><div class="kline-modal-stat-label">成交量</div><div class="kline-modal-stat-value" id="kmiVol">--</div></div>
-      <div class="kline-modal-stat"><div class="kline-modal-stat-label">涨跌幅</div><div class="kline-modal-stat-value" id="kmiChg">--</div></div>
+      <div class="kline-modal-stat"><div class="kline-modal-stat-label" data-i18n="kline_stat_open">开盘</div><div class="kline-modal-stat-value" id="kmiOpen">--</div></div>
+      <div class="kline-modal-stat"><div class="kline-modal-stat-label" data-i18n="kline_stat_high">最高</div><div class="kline-modal-stat-value" id="kmiHigh">--</div></div>
+      <div class="kline-modal-stat"><div class="kline-modal-stat-label" data-i18n="kline_stat_low">最低</div><div class="kline-modal-stat-value" id="kmiLow">--</div></div>
+      <div class="kline-modal-stat"><div class="kline-modal-stat-label" data-i18n="kline_stat_close">收盘</div><div class="kline-modal-stat-value" id="kmiClose">--</div></div>
+      <div class="kline-modal-stat"><div class="kline-modal-stat-label" data-i18n="kline_stat_vol">成交量</div><div class="kline-modal-stat-value" id="kmiVol">--</div></div>
+      <div class="kline-modal-stat"><div class="kline-modal-stat-label" data-i18n="kline_stat_chg">涨跌幅</div><div class="kline-modal-stat-value" id="kmiChg">--</div></div>
     </div>
     <div class="kline-modal-body">
       <canvas class="kline-modal-canvas" id="klineModalCanvas"></canvas>
@@ -1924,17 +1924,17 @@
       </svg>
     </div>
     <div class="announcement-icon-text">
-      <div class="announcement-title">公告监控</div>
-      <div class="announcement-sub">XMax 实时公告</div>
+      <div class="announcement-title" data-i18n="announce_title">公告监控</div>
+      <div class="announcement-sub" data-i18n="announce_sub">XMax 实时公告</div>
     </div>
     <div class="announcement-badge" id="announcementBadge">0 新</div>
     <span class="sidebar-toggle" onclick="event.stopPropagation();toggleSidebar('announcement')" title="收起">▶</span>
   </div>
   <div class="announcement-body">
   <div class="announcement-list" id="announcementList">
-    <div class="announcement-loading">正在加载公告...</div>
+    <div class="announcement-loading" data-i18n="announce_loading">正在加载公告...</div>
   </div>
-  <div class="announcement-update-time" id="announcementUpdateTime">点击刷新</div>
+  <div class="announcement-update-time" id="announcementUpdateTime" data-i18n="announce_click_refresh">点击刷新</div>
   </div><!-- /announcement-body -->
 </div>
 
@@ -1960,7 +1960,7 @@
         <div class="logo-ico"><img src="data:image/jpeg;base64,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" alt="logo"></div>
         <div>
           <h1>XBelievers</h1>
-          <p>AI 品牌内容智能工坊</p>
+          <p data-i18n="brand_subtitle">AI 品牌内容智能工坊</p>
         </div>
       </a>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -2048,50 +2048,50 @@
     <div class="tab-content" id="tabInstitutions">
       <!-- 大标题 -->
       <div class="inst-hero">
-        <div class="inst-hero-badge">🌐 NASDAQ · Institutional Holdings</div>
-        <h2>XMAX <span class="hl">全球机构持股明细</span></h2>
-        <p>汇聚全球顶级投资机构的持仓全景，从华尔街到欧洲大陆，XMAX 持续获得全球资本认可与信任</p>
+        <div class="inst-hero-badge" data-i18n="inst_badge">🌐 NASDAQ · Institutional Holdings</div>
+        <h2>XMAX <span class="hl" data-i18n="inst_title">全球机构持股明细</span></h2>
+        <p data-i18n="inst_desc">汇聚全球顶级投资机构的持仓全景，从华尔街到欧洲大陆，XMAX 持续获得全球资本认可与信任</p>
       </div>
 
       <!-- 统计概览 -->
       <div class="inst-stats-bar" id="instStatsBar">
         <div class="inst-stat-chip">
-          <div><div class="label">持股机构总数</div><div class="value purple" id="instTotalCount">--</div></div>
+          <div><div class="label" data-i18n="stat_total_count">持股机构总数</div><div class="value purple" id="instTotalCount">--</div></div>
         </div>
         <div class="inst-stat-chip">
-          <div><div class="label">合计持股</div><div class="value green" id="instTotalShares">--</div></div>
+          <div><div class="label" data-i18n="stat_total_shares">合计持股</div><div class="value green" id="instTotalShares">--</div></div>
         </div>
         <div class="inst-stat-chip">
-          <div><div class="label">合计市值</div><div class="value amber" id="instTotalValue">--</div></div>
+          <div><div class="label" data-i18n="stat_total_value">合计市值</div><div class="value amber" id="instTotalValue">--</div></div>
         </div>
         <div class="inst-stat-chip">
-          <div><div class="label">机构持股占比</div><div class="value cyan" id="instOwnershipPct">--</div></div>
+          <div><div class="label" data-i18n="stat_ownership_pct">机构持股占比</div><div class="value cyan" id="instOwnershipPct">--</div></div>
         </div>
       </div>
 
       <!-- 世界地图 -->
       <div class="inst-map-section">
-        <div class="inst-map-title"><span class="dot"></span>全球机构分布图</div>
+        <div class="inst-map-title"><span class="dot"></span><span data-i18n="map_title">全球机构分布图</span></div>
         <div id="instMapLoading" class="inst-map-loading">
           <div class="inst-map-loading-ring"></div>
-          <span>正在加载地图数据…</span>
+          <span data-i18n="map_loading">正在加载地图数据…</span>
         </div>
         <canvas id="instMapCanvas" width="1000" height="500"></canvas>
         <div class="inst-map-legend">
-          <div class="inst-map-legend-item"><span class="dot us"></span>北美</div>
-          <div class="inst-map-legend-item"><span class="dot eu"></span>欧洲</div>
-          <div class="inst-map-legend-item"><span class="dot asia"></span>亚洲</div>
-          <div class="inst-map-legend-item"><span class="dot other"></span>其他</div>
+          <div class="inst-map-legend-item"><span class="dot us"></span><span data-i18n="map_legend_na">北美</span></div>
+          <div class="inst-map-legend-item"><span class="dot eu"></span><span data-i18n="map_legend_eu">欧洲</span></div>
+          <div class="inst-map-legend-item"><span class="dot asia"></span><span data-i18n="map_legend_asia">亚洲</span></div>
+          <div class="inst-map-legend-item"><span class="dot other"></span><span data-i18n="map_legend_other">其他</span></div>
         </div>
       </div>
 
       <!-- 机构表格 -->
       <div class="inst-table-section">
         <div class="inst-table-header">
-          <div class="title">📋 持股机构明细</div>
+          <div class="title" data-i18n="table_title">📋 持股机构明细</div>
           <div class="inst-table-controls">
             <div class="inst-search-wrap">
-              <input class="inst-search" id="instSearchInput" placeholder="搜索机构名称..." oninput="filterInstTable()" />
+              <input class="inst-search" id="instSearchInput" data-i18n="table_search" placeholder="搜索机构名称..." oninput="filterInstTable()" />
             </div>
             <button class="inst-export-btn" onclick="exportInstToExcel()" title="导出为 Excel">
               <span>📥</span> 导出 Excel
@@ -2102,14 +2102,14 @@
           <table class="inst-table" id="instMainTable">
             <thead>
               <tr>
-                <th>#</th>
-                <th>机构名称</th>
-                <th>中文译名</th>
-                <th>持有股数</th>
-                <th>变化</th>
-                <th>变化%</th>
-                <th>持仓市值 (USD)</th>
-                <th>日期</th>
+                <th data-i18n="th_index">#</th>
+                <th data-i18n="th_name">机构名称</th>
+                <th data-i18n="th_cn_name">中文译名</th>
+                <th data-i18n="th_shares">持有股数</th>
+                <th data-i18n="th_change">变化</th>
+                <th data-i18n="th_change_pct">变化%</th>
+                <th data-i18n="th_value">持仓市值 (USD)</th>
+                <th data-i18n="th_date">日期</th>
               </tr>
             </thead>
             <tbody id="instTableBody">
@@ -2119,11 +2119,11 @@
           </table>
           <div class="inst-table-loading" id="instTableLoading">
             <div class="spinner"></div>
-            <div>正在加载机构持股数据...</div>
+            <div data-i18n="table_loading">正在加载机构持股数据...</div>
           </div>
           <div class="inst-table-empty" id="instTableEmpty" style="display:none">
             <div class="ico">🌐</div>
-            <div>暂无机构持股数据</div>
+            <div data-i18n="table_empty">暂无机构持股数据</div>
           </div>
         </div>
       </div>
@@ -2216,12 +2216,11 @@ async function loadInstData() {
       empty.style.display = '';
       empty.innerHTML = `
         <div class="ico">📊</div>
-        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Nasdaq 数据暂不可用</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">${t('nasdaq_unavailable')}</div>
         <div style="font-size:12px;color:var(--text3);max-width:500px;margin:0 auto;line-height:1.8">
-          Nasdaq 官方页面显示 XMAX 的机构持股数据（Institutional Holdings）<strong style="color:var(--text)">当前不可用</strong>。<br>
-          这通常意味着该股票尚未有机构提交13F季度持仓申报，或数据正在更新中。<br><br>
+          ${t('nasdaq_unavailable_desc')}<br><br>
           <a href="https://www.nasdaq.com/market-activity/stocks/xwin/institutional-holdings" target="_blank"
-             style="color:var(--primary-light);text-decoration:underline">🔗 前往 Nasdaq 官网查看</a>
+             style="color:var(--primary-light);text-decoration:underline">${t('nasdaq_link')}</a>
         </div>
       `;
       // 仍然绘制地图（显示真实世界地图背景，不带机构标记）
@@ -2333,7 +2332,7 @@ function renderInstTable(filter) {
   const sumValue = list.reduce((s,i) => s + (i.value||0), 0);
   tfoot.innerHTML = `<tr>
     <td></td>
-    <td style="font-weight:800;text-align:center" colspan="2">总计 ${list.length} 家机构</td>
+    <td style="font-weight:800;text-align:center" colspan="2">${t('total_institutions').replace('{}', list.length)}</td>
     <td style="font-weight:800">${formatNum(sumShares)}</td>
     <td></td><td></td>
     <td class="value" style="font-weight:800">$${formatCurrency(sumValue)}</td>
@@ -2349,15 +2348,15 @@ function filterInstTable() {
 // 导出机构持股数据为 Excel (.xlsx)
 function exportInstToExcel() {
   if (!instData || !instData.institutions || instData.institutions.length === 0) {
-    showToast('暂无数据可导出'); return;
+    showToast(t('no_data_export')); return;
   }
   // 构建 HTML 表格，Excel 能直接解析
   const rows = instData.institutions;
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Institutional Holdings</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
   html += '<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px">';
-  html += '<tr style="color:#1a1a2e;font-size:16px;font-weight:bold"><td colspan="8" style="text-align:center;padding:12px 8px;border:1px solid #ccc">XMAX 全球机构持股明细</td></tr>';
+  html += `<tr style="color:#1a1a2e;font-size:16px;font-weight:bold"><td colspan="8" style="text-align:center;padding:12px 8px;border:1px solid #ccc">${t('export_title')}</td></tr>`;
   html += '<tr style="color:#1a1a2e;font-weight:bold">';
-  html += '<td>#</td><td>机构名称</td><td>中文译名</td><td>持有股数</td><td>变化(股)</td><td>变化%</td><td>持仓市值(USD)</td><td>报告日期</td></tr>';
+  html += `<td>#</td><td>${t('th_name')}</td><td>${t('th_cn_name')}</td><td>${t('th_shares')}</td><td>${t('th_change')}</td><td>${t('th_change_pct')}</td><td>${t('th_value')}</td><td>${t('th_date')}</td></tr>`;
   rows.forEach((item, idx) => {
     html += '<tr style="color:#1a1a2e">';
     html += `<td>${idx+1}</td>`;
@@ -2378,7 +2377,7 @@ function exportInstToExcel() {
   const sumShares = rows.reduce((s,i) => s + (i.shares||0), 0);
   const sumValue = rows.reduce((s,i) => s + (i.value||0), 0);
   html += '<tr style="color:#1a1a2e;font-weight:bold">';
-  html += `<td colspan="3">合计 ${rows.length} 家机构</td>`;
+  html += `<td colspan="3">${t('total_institutions').replace('{}', rows.length)}</td>`;
   html += `<td>${sumShares.toLocaleString()}</td><td></td><td></td>`;
   html += `<td>$${sumValue.toLocaleString(undefined,{minimumFractionDigits:2})}</td><td></td></tr>`;
   html += '</table></body></html>';
@@ -2399,7 +2398,7 @@ function exportInstToExcel() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast('✅ Excel 文件已下载');
+  showToast(t('export_done'));
 }
 
 function formatNum(n) {
@@ -2508,7 +2507,7 @@ function startStockTimers() {
   // 更新状态指示
   const indicator = document.getElementById('marketStatusIndicator');
   if (indicator) {
-    const labels = { pre: '🟡 盘前', open: '🟢 交易中', after: '🟠 盘后', closed: '🔴 已收盘' };
+    const labels = { pre: t('market_pre'), open: t('market_open'), after: t('market_after'), closed: t('market_closed') };
     indicator.textContent = labels[state] || '';
     indicator.className = 'market-status ' + state;
   }
@@ -2582,7 +2581,7 @@ function updateStockDisplay(price, change, changePercent, open, high, low, preCl
   if (turnoverEl) turnoverEl.textContent = extra.turnover_ratio != null ? formatNumber(extra.turnover_ratio, 2) + '%' : '--';
   if (updateTimeEl) {
     const now = new Date();
-    updateTimeEl.textContent = '更新于 ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    updateTimeEl.textContent = t('updated_at') + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 }
 
@@ -2703,7 +2702,7 @@ async function loadKline(period, limit, btnEl) {
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('暂无数据，请切换日K查看', rect.width / 2, rect.height / 2);
+      ctx.fillText(t('kline_no_data'), rect.width / 2, rect.height / 2);
       // 如果失败的是 4H，自动切回日K
       if (period === '4h' && btnEl) {
         const dailyBtn = btnEl.parentElement.querySelector('button');
@@ -3013,7 +3012,7 @@ async function loadKlineModal(period, limit, btnEl) {
           ctx.fillStyle = 'rgba(255,255,255,0.3)';
           ctx.font = '14px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('暂无数据，请切换日K查看', rect.width / 2, rect.height / 2);
+          ctx.fillText(t('kline_no_data'), rect.width / 2, rect.height / 2);
         }
       }
       // 如果失败的是 4H，自动切回日K
@@ -3087,16 +3086,16 @@ function renderAnnouncements(announcements, hasNew = false) {
   if (!listEl) return;
 
   if (announcements.length === 0) {
-    listEl.innerHTML = '<div class="announcement-empty">暂无公告</div>';
+    listEl.innerHTML = '<div class="announcement-empty">' + t('announce_empty') + '</div>';
     removeAnnPagination();
-    if (badgeEl) badgeEl.textContent = '0 新';
+    if (badgeEl) badgeEl.textContent = '0' + t('announce_new');
     return;
   }
 
   // 计算新公告数量
   const newCount = announcements.filter(a => !seenAnnouncementIds.has(a.id)).length;
   if (badgeEl) {
-    badgeEl.textContent = `${newCount} 新`;
+    badgeEl.textContent = newCount + t('announce_new');
     badgeEl.classList.toggle('new', newCount > 0);
   }
 
@@ -3211,7 +3210,7 @@ async function fetchAnnouncements() {
 
       if (updateTimeEl) {
         const now = new Date();
-        updateTimeEl.textContent = '更新于 ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        updateTimeEl.textContent = t('announce_updated') + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       }
 
       // 3秒后标记所有公告为已查看
@@ -3219,7 +3218,7 @@ async function fetchAnnouncements() {
         announcements.forEach(a => seenAnnouncementIds.add(a.id));
         const badgeEl = document.getElementById('announcementBadge');
         if (badgeEl) {
-          badgeEl.textContent = '0 新';
+          badgeEl.textContent = '0' + t('announce_new');
           badgeEl.classList.remove('new');
         }
         document.querySelectorAll('.announcement-item.new').forEach(el => {
@@ -3233,7 +3232,7 @@ async function fetchAnnouncements() {
   } catch (err) {
     console.error('公告获取失败:', err);
     if (listEl) {
-      listEl.innerHTML = '<div class="announcement-empty">更新失败: ' + escHtml(err.message) + '</div>';
+      listEl.innerHTML = '<div class="announcement-empty">' + t('announce_update_failed') + ': ' + escHtml(err.message) + '</div>';
     }
     if (updateTimeEl) {
       updateTimeEl.textContent = '更新失败';
@@ -3245,7 +3244,7 @@ function openAnnouncement(url) {
   if (url && url !== '#') {
     window.open(url, '_blank');
   } else {
-    showToast('公告详情功能开发中...');
+    showToast(t('detail_dev'));
   }
 }
 
@@ -3562,7 +3561,7 @@ function showPreview() {
       <div class="ap-summary-label">内容摘要</div>
       <div class="ap-summary">${escHtml(a.summary || '（正文较短，已提取全部内容）')}</div>
       ${a.fullText && a.fullText !== a.summary ? `
-        <div class="ap-fulltext-toggle open" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-label').textContent=this.classList.contains('open')?'收起正文':'展开全部正文'">
+        <div class="ap-fulltext-toggle open" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-label').textContent=this.classList.contains('open')?t('collapse_text'):t('expand_text')">
           <span class="arrow">▶</span> <span class="toggle-label">收起正文</span>（${a.wordCount ? a.wordCount + ' 字' : ''}）
         </div>
         <div class="ap-fulltext-wrap open">
@@ -4048,7 +4047,7 @@ async function ntSearch(isAutoRefresh = false) {
     }
 
     if (!data.success) {
-      content.innerHTML = `<div class="nt-empty"><div class="nt-empty-ico">⚠️</div><div>${escHtml(data.error || '搜索失败')}</div></div>`;
+      content.innerHTML = `<div class="nt-empty"><div class="nt-empty-ico">⚠️</div><div>${escHtml(data.error || t('search_failed'))}</div></div>`;
       return;
     }
 
@@ -4389,16 +4388,16 @@ function ntRestoreMonitorState() {
 
 // ===== 多语言国际化 =====
 const LANGS = {
-  'en':    { flag:'🇺🇸', label:'English',     dir:'ltr' },
-  'ja':    { flag:'🇯🇵', label:'日本語',       dir:'ltr' },
-  'ko':    { flag:'🇰🇷', label:'한국어',       dir:'ltr' },
-  'zh-CN': { flag:'🇨🇳', label:'简体中文',     dir:'ltr' },
-  'zh-TW': { flag:'🇹🇼', label:'繁體中文',     dir:'ltr' },
-  'ar':    { flag:'🇸🇦', label:'العربية',     dir:'rtl' },
-  'es':    { flag:'🇪🇸', label:'Español',      dir:'ltr' },
-  'he':    { flag:'🇮🇱', label:'עברית',       dir:'rtl' },
-  'vi':    { flag:'🇻🇳', label:'Tiếng Việt',   dir:'ltr' },
-  'th':    { flag:'🇹🇭', label:'ไทย',          dir:'ltr' },
+  'en':    { flag:'🇺🇸', label:'English', dir:'ltr' },
+  'ja':    { flag:'🇯🇵', label:'日本語', dir:'ltr' },
+  'ko':    { flag:'🇰🇷', label:'한국어', dir:'ltr' },
+  'zh-CN':    { flag:'🇨🇳', label:'简体中文', dir:'ltr' },
+  'zh-TW':    { flag:'🇹🇼', label:'繁體中文', dir:'ltr' },
+  'ar':    { flag:'🇸🇦', label:'العربية', dir:'rtl' },
+  'es':    { flag:'🇪🇸', label:'Español', dir:'ltr' },
+  'he':    { flag:'🇮🇱', label:'עברית', dir:'rtl' },
+  'vi':    { flag:'🇻🇳', label:'Tiếng Việt', dir:'ltr' },
+  'th':    { flag:'🇹🇭', label:'ไทย', dir:'ltr' },
 };
 
 const I18N = {
@@ -4406,8 +4405,8 @@ const I18N = {
     'hero_tag': '📰 Real-time Tracking · Auto-refresh every 15min',
     'hero_title': 'Real-time News Center',
     'hero_desc': 'XMAX Updates · Musk Ecosystem · Tweet Tracking, all in one place',
-    'tab_news': '📰 Live News',
-    'tab_inst': '🌐 Global Institutional Holdings',
+    'tab_news': 'Live News',
+    'tab_inst': 'Global Institutional Holdings',
     'col_xmax': 'XMAX News',
     'col_musk': 'Musk Ecosystem',
     'col_tweet': 'Musk Feed',
@@ -4418,25 +4417,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' until refresh',
     'updated_prefix': 'Updated at ',
+    'inst_badge': '🌐 NASDAQ · Institutional Holdings',
     'inst_title': 'XMAX Global Institutional Holdings',
-    'inst_subtitle': 'Aggregating top global institutional holdings. From Wall Street to Europe, XMAX continues to earn global capital recognition.',
-    'inst_loading': 'Loading institutional data...',
-    'inst_unavailable': 'Institutional holdings data currently unavailable',
+    'inst_desc': 'Aggregating top global institutional holdings. From Wall Street to Europe, XMAX continues to earn global capital recognition.',
+    'stat_total_count': 'Total Institutions',
+    'stat_total_shares': 'Total Shares',
+    'stat_total_value': 'Total Market Value',
+    'stat_ownership_pct': 'Institutional Ownership %',
+    'map_title': 'Global Institution Distribution',
+    'map_loading': 'Loading map data...',
+    'map_legend_na': 'North America',
+    'map_legend_eu': 'Europe',
+    'map_legend_asia': 'Asia',
+    'map_legend_other': 'Others',
+    'table_title': 'Institution Details',
+    'table_search': 'Search institution...',
+    'th_index': '#',
+    'th_name': 'Institution',
+    'th_cn_name': 'Chinese Name',
+    'th_shares': 'Shares Held',
+    'th_change': 'Change (Shares)',
+    'th_change_pct': 'Change %',
+    'th_value': 'Market Value (USD)',
+    'th_date': 'Date',
+    'table_loading': 'Loading institutional data...',
+    'table_empty': 'No institutional holdings data',
+    'nasdaq_unavailable': 'Nasdaq data temporarily unavailable',
+    'nasdaq_unavailable_desc': 'Nasdaq page shows XMAX institutional holdings are currently unavailable. This usually means no institutions have filed 13F quarterly reports yet, or data is being updated.',
+    'nasdaq_link': '🔗 View on Nasdaq website',
+    'total_institutions': 'Total {} institutions',
+    'no_data_export': 'No data to export',
+    'export_done': '✅ Excel file downloaded',
+    'export_title': 'XMAX Global Institutional Holdings',
+    'kline_modal_title': '📈 XMAX Candlestick Chart',
+    'kline_day_60': 'Day K 60',
+    'kline_day_120': 'Day K 120',
+    'kline_day_1y': 'Day K 1Y',
+    'kline_4h': '4H',
+    'kline_stat_open': 'Open',
+    'kline_stat_high': 'High',
+    'kline_stat_low': 'Low',
+    'kline_stat_close': 'Close',
+    'kline_stat_vol': 'Volume',
+    'kline_stat_chg': 'Change %',
+    'kline_no_data': 'No data, please switch to Day K',
+    'stock_kline_label': 'K-line Chart',
+    'stock_kline_day': 'Day K',
+    'stock_kline_quarter': 'Qtr K',
+    'stock_kline_year': 'Year K',
+    'stock_updating': 'Updating...',
+    'stock_week52': '52-Week Range',
+    'announce_title': 'Announcements',
+    'announce_sub': 'XMAX Real-time Announcements',
+    'announce_loading': 'Loading announcements...',
+    'announce_click_refresh': 'Click to refresh',
+    'announce_empty': 'No announcements',
+    'announce_update_failed': 'Update failed',
+    'announce_updated': 'Updated at ',
+    'announce_new': ' new',
+    'market_pre': '🟡 Pre-market',
+    'market_open': '🟢 Trading',
+    'market_after': '🟠 After-hours',
+    'market_closed': '🔴 Closed',
+    'brand_subtitle': 'AI-Powered Brand Content Workshop',
+    'page_title': 'XBelievers · AI-Powered Brand Content Workshop',
     'tag_line': '🌊 Deep Insights · Smart Content',
-    'export_btn': '📥 Export Excel',
-    'stock_loading': 'Loading...',
-    'announce_loading': 'Loading...',
-    'kline_title': '📈 XMAX Candlestick Chart',
-    'inst_map_title': 'Global Institution Distribution',
-    'sidebar_stock': '💰 Stock',
-    'sidebar_announce': '📢 Announcements',
+    'updated_at': 'Updated at ',
+    'search_failed': 'Search failed',
+    'detail_dev': 'Detail feature under development...',
+    'collapse_text': 'Collapse',
+    'expand_text': 'Expand full article',
   },
   'ja': {
     'hero_tag': '📰 リアルタイム追跡 · 15分ごとに自動更新',
     'hero_title': 'リアルタイムニュースセンター',
     'hero_desc': 'XMAX最新情報 · マスクエコシステム · ツイート追跡、すべてここに',
-    'tab_news': '📰 ライブニュース',
-    'tab_inst': '🌐 グローバル機関投資家',
+    'tab_news': 'ライブニュース',
+    'tab_inst': 'グローバル機関投資家',
     'col_xmax': 'XMAX ニュース',
     'col_musk': 'マスクエコシステム',
     'col_tweet': 'マスク発言',
@@ -4447,19 +4504,83 @@ const I18N = {
     'countdown_prefix': '⏱ あと',
     'countdown_suffix': ' で更新',
     'updated_prefix': '更新: ',
-    'inst_title': 'XMAX グローバル機関投資家保有明細',
-    'inst_subtitle': '世界のトップ機関投資家の保有状況を集約。ウォール街からヨーロッパまで、XMAXはグローバル資本の信頼を獲得し続けています。',
-    'inst_loading': '機関データ読み込み中...',
-    'inst_unavailable': '機関投資家データは現在利用できません',
+    'inst_badge': '🌐 NASDAQ · 機関投資家保有',
+    'inst_title': 'XMAX グローバル機関投資家保有',
+    'inst_desc': '世界のトップ機関投資家の保有状況を集約。ウォール街からヨーロッパまで、XMAXはグローバル資本の信頼を獲得し続けています。',
+    'stat_total_count': '機関総数',
+    'stat_total_shares': '合計株数',
+    'stat_total_value': '合計時価総額',
+    'stat_ownership_pct': '機関保有比率',
+    'map_title': 'グローバル機関分布',
+    'map_loading': '地図データ読み込み中...',
+    'map_legend_na': '北米',
+    'map_legend_eu': 'ヨーロッパ',
+    'map_legend_asia': 'アジア',
+    'map_legend_other': 'その他',
+    'table_title': '機関保有明細',
+    'table_search': '機関を検索...',
+    'th_index': '#',
+    'th_name': '機関名',
+    'th_cn_name': '中国語名',
+    'th_shares': '保有株数',
+    'th_change': '変化(株)',
+    'th_change_pct': '変化%',
+    'th_value': '時価総額(USD)',
+    'th_date': '日付',
+    'table_loading': '機関データ読み込み中...',
+    'table_empty': '機関保有データなし',
+    'nasdaq_unavailable': 'Nasdaqデータは一時的に利用不可',
+    'nasdaq_unavailable_desc': 'Nasdaqページでは現在XMAXの機関保有データが利用できません。通常、13F四半期報告書の未提出、またはデータ更新中の可能性があります。',
+    'nasdaq_link': '🔗 Nasdaqサイトで確認',
+    'total_institutions': '合計 {} 機関',
+    'no_data_export': 'エクスポートするデータがありません',
+    'export_done': '✅ Excelファイルをダウンロードしました',
+    'export_title': 'XMAX グローバル機関投資家保有',
+    'kline_modal_title': '📈 XMAX ローソク足チャート',
+    'kline_day_60': '日足 60日',
+    'kline_day_120': '日足 120日',
+    'kline_day_1y': '日足 1年',
+    'kline_4h': '4H',
+    'kline_stat_open': '始値',
+    'kline_stat_high': '高値',
+    'kline_stat_low': '安値',
+    'kline_stat_close': '終値',
+    'kline_stat_vol': '出来高',
+    'kline_stat_chg': '変化率',
+    'kline_no_data': 'データなし、日足に切り替えてください',
+    'stock_kline_label': 'Kライン',
+    'stock_kline_day': '日足',
+    'stock_kline_quarter': '四半期足',
+    'stock_kline_year': '年足',
+    'stock_updating': '更新中...',
+    'stock_week52': '52週高安',
+    'announce_title': '公告モニター',
+    'announce_sub': 'XMAX リアルタイム公告',
+    'announce_loading': '公告読み込み中...',
+    'announce_click_refresh': 'クリックで更新',
+    'announce_empty': '公告なし',
+    'announce_update_failed': '更新失敗',
+    'announce_updated': '更新: ',
+    'announce_new': ' 新着',
+    'market_pre': '🟡 プレマーケット',
+    'market_open': '🟢 取引中',
+    'market_after': '🟠 時間外',
+    'market_closed': '🔴 取引終了',
+    'brand_subtitle': 'AIブランドコンテンツワークショップ',
+    'page_title': 'XBelievers · AIブランドコンテンツワークショップ',
     'tag_line': '🌊 深い洞察 · スマートコンテンツ',
-    'export_btn': '📥 Excelエクスポート',
+    'updated_at': '更新: ',
+    'search_failed': '検索失敗',
+    'detail_dev': '詳細機能は開発中...',
+    'collapse_text': '折りたたむ',
+    'expand_text': '全文を展開',
   },
   'ko': {
     'hero_tag': '📰 실시간 추적 · 15분마다 자동 갱신',
     'hero_title': '실시간 뉴스 센터',
     'hero_desc': 'XMAX 업데이트 · 머스크 에코시스템 · 트윗 추적, 한곳에서',
-    'tab_news': '📰 라이브 뉴스',
-    'tab_inst': '🌐 글로벌 기관 보유',
+    'tab_news': '라이브 뉴스',
+    'tab_inst': '글로벌 기관 보유',
     'col_xmax': 'XMAX 뉴스',
     'col_musk': '머스크 에코시스템',
     'col_tweet': '머스크 발언',
@@ -4470,19 +4591,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' 후 갱신',
     'updated_prefix': '업데이트: ',
-    'inst_title': 'XMAX 글로벌 기관 보유明细',
-    'inst_subtitle': '글로벌 최고 기관투자자의 보유 현황. 월스트리트에서 유럽까지, XMAX는 글로벌 자본의 신뢰를 지속적으로 얻고 있습니다.',
-    'inst_loading': '기관 데이터 로딩 중...',
-    'inst_unavailable': '현재 기관 보유 데이터를 사용할 수 없습니다',
+    'inst_badge': '🌐 NASDAQ · 기관 보유',
+    'inst_title': 'XMAX 글로벌 기관 보유 현황',
+    'inst_desc': '글로벌 최고 기관투자자의 보유 현황. 월스트리트에서 유럽까지, XMAX는 글로벌 자본의 신뢰를 지속적으로 얻고 있습니다.',
+    'stat_total_count': '총 기관 수',
+    'stat_total_shares': '총 보유주식',
+    'stat_total_value': '총 시장가치',
+    'stat_ownership_pct': '기관 보유 비율',
+    'map_title': '글로벌 기관 분포',
+    'map_loading': '지도 데이터 로딩 중...',
+    'map_legend_na': '북미',
+    'map_legend_eu': '유럽',
+    'map_legend_asia': '아시아',
+    'map_legend_other': '기타',
+    'table_title': '기관 보유 명세',
+    'table_search': '기관 검색...',
+    'th_index': '#',
+    'th_name': '기관명',
+    'th_cn_name': '중문명',
+    'th_shares': '보유주식수',
+    'th_change': '변화(주)',
+    'th_change_pct': '변화%',
+    'th_value': '시장가치(USD)',
+    'th_date': '날짜',
+    'table_loading': '기관 데이터 로딩 중...',
+    'table_empty': '기관 보유 데이터 없음',
+    'nasdaq_unavailable': 'Nasdaq 데이터 일시적 이용 불가',
+    'nasdaq_unavailable_desc': 'Nasdaq 페이지에 XMAX 기관 보유 데이터가 현재 이용 불가능합니다. 이는 보통 13F 분기 보고서 미제출 또는 데이터 업데이트 중임을 의미합니다.',
+    'nasdaq_link': '🔗 Nasdaq 사이트에서 확인',
+    'total_institutions': '총 {}개 기관',
+    'no_data_export': '내보낼 데이터가 없습니다',
+    'export_done': '✅ Excel 파일 다운로드 완료',
+    'export_title': 'XMAX 글로벌 기관 보유 현황',
+    'kline_modal_title': '📈 XMAX 캔들스틱 차트',
+    'kline_day_60': '일봉 60일',
+    'kline_day_120': '일봉 120일',
+    'kline_day_1y': '일봉 1년',
+    'kline_4h': '4H',
+    'kline_stat_open': '시가',
+    'kline_stat_high': '고가',
+    'kline_stat_low': '저가',
+    'kline_stat_close': '종가',
+    'kline_stat_vol': '거래량',
+    'kline_stat_chg': '변화율',
+    'kline_no_data': '데이터 없음, 일봉으로 전환하세요',
+    'stock_kline_label': 'K라인 차트',
+    'stock_kline_day': '일봉',
+    'stock_kline_quarter': '분기봉',
+    'stock_kline_year': '연봉',
+    'stock_updating': '업데이트 중...',
+    'stock_week52': '52주 범위',
+    'announce_title': '공시 모니터',
+    'announce_sub': 'XMAX 실시간 공시',
+    'announce_loading': '공시 로딩 중...',
+    'announce_click_refresh': '클릭하여 새로고침',
+    'announce_empty': '공시 없음',
+    'announce_update_failed': '업데이트 실패',
+    'announce_updated': '업데이트: ',
+    'announce_new': ' 신규',
+    'market_pre': '🟡 프리마켓',
+    'market_open': '🟢 거래중',
+    'market_after': '🟠 애프터마켓',
+    'market_closed': '🔴 마감',
+    'brand_subtitle': 'AI 브랜드 콘텐츠 워크숍',
+    'page_title': 'XBelievers · AI 브랜드 콘텐츠 워크숍',
     'tag_line': '🌊 깊은 통찰 · 스마트 콘텐츠',
-    'export_btn': '📥 Excel 내보내기',
+    'updated_at': '업데이트: ',
+    'search_failed': '검색 실패',
+    'detail_dev': '상세 기능 개발 중...',
+    'collapse_text': '접기',
+    'expand_text': '전체 내용 펼치기',
   },
   'zh-CN': {
     'hero_tag': '📰 实时追踪 · 每15分钟自动刷新',
     'hero_title': '实时新闻中心',
     'hero_desc': 'XMAX 动态 · 马斯克生态 · 推特追踪，一网打尽',
-    'tab_news': '📰 实时新闻',
-    'tab_inst': '🌐 全球机构持股',
+    'tab_news': '实时新闻',
+    'tab_inst': '全球机构持股',
     'col_xmax': 'XMAX 新闻',
     'col_musk': '马斯克生态',
     'col_tweet': '马斯克言论',
@@ -4493,19 +4678,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' 后刷新',
     'updated_prefix': '更新于 ',
+    'inst_badge': '🌐 NASDAQ · 机构持股',
     'inst_title': 'XMAX 全球机构持股明细',
-    'inst_subtitle': '汇聚全球顶级投资机构的持仓全景，从华尔街到欧洲大陆，XMAX 持续获得全球资本认可与信任',
-    'inst_loading': '正在加载机构数据...',
-    'inst_unavailable': '机构持股数据当前不可用',
+    'inst_desc': '汇聚全球顶级投资机构的持仓全景，从华尔街到欧洲大陆，XMAX 持续获得全球资本认可与信任',
+    'stat_total_count': '持股机构总数',
+    'stat_total_shares': '合计持股',
+    'stat_total_value': '合计市值',
+    'stat_ownership_pct': '机构持股占比',
+    'map_title': '全球机构分布图',
+    'map_loading': '正在加载地图数据…',
+    'map_legend_na': '北美',
+    'map_legend_eu': '欧洲',
+    'map_legend_asia': '亚洲',
+    'map_legend_other': '其他',
+    'table_title': '持股机构明细',
+    'table_search': '搜索机构名称...',
+    'th_index': '#',
+    'th_name': '机构名称',
+    'th_cn_name': '中文译名',
+    'th_shares': '持有股数',
+    'th_change': '变化(股)',
+    'th_change_pct': '变化%',
+    'th_value': '持仓市值(USD)',
+    'th_date': '日期',
+    'table_loading': '正在加载机构持股数据...',
+    'table_empty': '暂无机构持股数据',
+    'nasdaq_unavailable': 'Nasdaq 数据暂不可用',
+    'nasdaq_unavailable_desc': 'Nasdaq 官方页面显示 XMAX 的机构持股数据当前不可用。这通常意味着该股票尚未有机构提交13F季度持仓申报，或数据正在更新中。',
+    'nasdaq_link': '🔗 前往 Nasdaq 官网查看',
+    'total_institutions': '总计 {} 家机构',
+    'no_data_export': '暂无数据可导出',
+    'export_done': '✅ Excel 文件已下载',
+    'export_title': 'XMAX 全球机构持股明细',
+    'kline_modal_title': '📈 XMAX K线图',
+    'kline_day_60': '日K 60日',
+    'kline_day_120': '日K 120日',
+    'kline_day_1y': '日K 1年',
+    'kline_4h': '4H',
+    'kline_stat_open': '开盘',
+    'kline_stat_high': '最高',
+    'kline_stat_low': '最低',
+    'kline_stat_close': '收盘',
+    'kline_stat_vol': '成交量',
+    'kline_stat_chg': '涨跌幅',
+    'kline_no_data': '暂无数据，请切换日K查看',
+    'stock_kline_label': 'K线走势',
+    'stock_kline_day': '日K',
+    'stock_kline_quarter': '季K',
+    'stock_kline_year': '年K',
+    'stock_updating': '更新中...',
+    'stock_week52': '52周范围',
+    'announce_title': '公告监控',
+    'announce_sub': 'XMax 实时公告',
+    'announce_loading': '正在加载公告...',
+    'announce_click_refresh': '点击刷新',
+    'announce_empty': '暂无公告',
+    'announce_update_failed': '更新失败',
+    'announce_updated': '更新于 ',
+    'announce_new': ' 新',
+    'market_pre': '🟡 盘前',
+    'market_open': '🟢 交易中',
+    'market_after': '🟠 盘后',
+    'market_closed': '🔴 已收盘',
+    'brand_subtitle': 'AI 品牌内容智能工坊',
+    'page_title': 'XBelievers · AI 品牌内容智能工坊',
     'tag_line': '🌊 深度洞察 · 智造内容',
-    'export_btn': '📥 导出Excel',
+    'updated_at': '更新于 ',
+    'search_failed': '搜索失败',
+    'detail_dev': '公告详情功能开发中...',
+    'collapse_text': '收起正文',
+    'expand_text': '展开全部正文',
   },
   'zh-TW': {
     'hero_tag': '📰 即時追蹤 · 每15分鐘自動刷新',
     'hero_title': '即時新聞中心',
     'hero_desc': 'XMAX 動態 · 馬斯克生態 · 推特追蹤，一網打盡',
-    'tab_news': '📰 即時新聞',
-    'tab_inst': '🌐 全球機構持股',
+    'tab_news': '即時新聞',
+    'tab_inst': '全球機構持股',
     'col_xmax': 'XMAX 新聞',
     'col_musk': '馬斯克生態',
     'col_tweet': '馬斯克言論',
@@ -4516,19 +4765,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' 後刷新',
     'updated_prefix': '更新於 ',
+    'inst_badge': '🌐 NASDAQ · 機構持股',
     'inst_title': 'XMAX 全球機構持股明細',
-    'inst_subtitle': '匯聚全球頂級投資機構的持倉全景，從華爾街到歐洲大陸，XMAX 持續獲得全球資本認可與信任',
-    'inst_loading': '正在載入機構資料...',
-    'inst_unavailable': '機構持股資料目前不可用',
+    'inst_desc': '匯聚全球頂級投資機構的持倉全景，從華爾街到歐洲大陸，XMAX 持續獲得全球資本認可與信任',
+    'stat_total_count': '持股機構總數',
+    'stat_total_shares': '合計持股',
+    'stat_total_value': '合計市值',
+    'stat_ownership_pct': '機構持股佔比',
+    'map_title': '全球機構分佈圖',
+    'map_loading': '正在載入地圖資料…',
+    'map_legend_na': '北美',
+    'map_legend_eu': '歐洲',
+    'map_legend_asia': '亞洲',
+    'map_legend_other': '其他',
+    'table_title': '持股機構明細',
+    'table_search': '搜尋機構名稱...',
+    'th_index': '#',
+    'th_name': '機構名稱',
+    'th_cn_name': '中文譯名',
+    'th_shares': '持有股數',
+    'th_change': '變化(股)',
+    'th_change_pct': '變化%',
+    'th_value': '持倉市值(USD)',
+    'th_date': '日期',
+    'table_loading': '正在載入機構持股資料...',
+    'table_empty': '暫無機構持股資料',
+    'nasdaq_unavailable': 'Nasdaq 資料暫不可用',
+    'nasdaq_unavailable_desc': 'Nasdaq 官方頁面顯示 XMAX 的機構持股資料目前不可用。這通常意味著該股票尚未有機構提交13F季度持倉申報，或資料正在更新中。',
+    'nasdaq_link': '🔗 前往 Nasdaq 官網查看',
+    'total_institutions': '總計 {} 家機構',
+    'no_data_export': '暫無資料可匯出',
+    'export_done': '✅ Excel 檔案已下載',
+    'export_title': 'XMAX 全球機構持股明細',
+    'kline_modal_title': '📈 XMAX K線圖',
+    'kline_day_60': '日K 60日',
+    'kline_day_120': '日K 120日',
+    'kline_day_1y': '日K 1年',
+    'kline_4h': '4H',
+    'kline_stat_open': '開盤',
+    'kline_stat_high': '最高',
+    'kline_stat_low': '最低',
+    'kline_stat_close': '收盤',
+    'kline_stat_vol': '成交量',
+    'kline_stat_chg': '漲跌幅',
+    'kline_no_data': '暫無資料，請切換日K查看',
+    'stock_kline_label': 'K線走勢',
+    'stock_kline_day': '日K',
+    'stock_kline_quarter': '季K',
+    'stock_kline_year': '年K',
+    'stock_updating': '更新中...',
+    'stock_week52': '52週範圍',
+    'announce_title': '公告監控',
+    'announce_sub': 'XMax 即時公告',
+    'announce_loading': '正在載入公告...',
+    'announce_click_refresh': '點擊刷新',
+    'announce_empty': '暫無公告',
+    'announce_update_failed': '更新失敗',
+    'announce_updated': '更新於 ',
+    'announce_new': ' 新',
+    'market_pre': '🟡 盤前',
+    'market_open': '🟢 交易中',
+    'market_after': '🟠 盤後',
+    'market_closed': '🔴 已收盤',
+    'brand_subtitle': 'AI 品牌內容智慧工坊',
+    'page_title': 'XBelievers · AI 品牌內容智慧工坊',
     'tag_line': '🌊 深度洞察 · 智造內容',
-    'export_btn': '📥 匯出Excel',
+    'updated_at': '更新於 ',
+    'search_failed': '搜尋失敗',
+    'detail_dev': '公告詳情功能開發中...',
+    'collapse_text': '收起正文',
+    'expand_text': '展開全部正文',
   },
   'ar': {
     'hero_tag': '📰 تتبع فوري · تحديث تلقائي كل 15 دقيقة',
     'hero_title': 'مركز الأخبار الفورية',
     'hero_desc': 'تحديثات XMAX · نظام ماسك · تتبع التغريدات، كل شيء في مكان واحد',
-    'tab_news': '📰 أخبار مباشرة',
-    'tab_inst': '🌐 الحيازات المؤسسية العالمية',
+    'tab_news': 'أخبار مباشرة',
+    'tab_inst': 'الحيازات المؤسسية العالمية',
     'col_xmax': 'أخبار XMAX',
     'col_musk': 'نظام ماسك',
     'col_tweet': 'تغريدات ماسك',
@@ -4539,19 +4852,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' حتى التحديث',
     'updated_prefix': 'تم التحديث: ',
+    'inst_badge': '🌐 NASDAQ · الحيازات المؤسسية',
     'inst_title': 'XMAX الحيازات المؤسسية العالمية',
-    'inst_subtitle': 'تجميع أفضل الحيازات المؤسسية العالمية. من وول ستريت إلى أوروبا، تواصل XMAX كسب ثقة رأس المال العالمي.',
-    'inst_loading': 'جاري تحميل البيانات المؤسسية...',
-    'inst_unavailable': 'بيانات الحيازات المؤسسية غير متاحة حالياً',
+    'inst_desc': 'تجميع أفضل الحيازات المؤسسية العالمية. من وول ستريت إلى أوروبا، تواصل XMAX كسب ثقة رأس المال العالمي.',
+    'stat_total_count': 'إجمالي المؤسسات',
+    'stat_total_shares': 'إجمالي الأسهم',
+    'stat_total_value': 'إجمالي القيمة السوقية',
+    'stat_ownership_pct': 'نسبة الملكية المؤسسية',
+    'map_title': 'توزيع المؤسسات العالمية',
+    'map_loading': 'جاري تحميل بيانات الخريطة...',
+    'map_legend_na': 'أمريكا الشمالية',
+    'map_legend_eu': 'أوروبا',
+    'map_legend_asia': 'آسيا',
+    'map_legend_other': 'أخرى',
+    'table_title': 'تفاصيل المؤسسات',
+    'table_search': 'بحث عن مؤسسة...',
+    'th_index': '#',
+    'th_name': 'المؤسسة',
+    'th_cn_name': 'الاسم الصيني',
+    'th_shares': 'الأسهم المملوكة',
+    'th_change': 'التغير (سهم)',
+    'th_change_pct': 'نسبة التغير',
+    'th_value': 'القيمة السوقية (USD)',
+    'th_date': 'التاريخ',
+    'table_loading': 'جاري تحميل بيانات المؤسسات...',
+    'table_empty': 'لا توجد بيانات حيازات مؤسسية',
+    'nasdaq_unavailable': 'بيانات Nasdaq غير متاحة مؤقتاً',
+    'nasdaq_unavailable_desc': 'تظهر صفحة Nasdaq أن بيانات الحيازات المؤسسية لـ XMAX غير متاحة حالياً. هذا يعني عادةً أنه لم تقدم أي مؤسسات تقارير 13F ربع السنوية بعد، أو أن البيانات قيد التحديث.',
+    'nasdaq_link': '🔗 عرض على موقع Nasdaq',
+    'total_institutions': 'إجمالي {} مؤسسة',
+    'no_data_export': 'لا توجد بيانات للتصدير',
+    'export_done': '✅ تم تحميل ملف Excel',
+    'export_title': 'XMAX الحيازات المؤسسية العالمية',
+    'kline_modal_title': '📈 XMAX رسم بياني',
+    'kline_day_60': 'يومي 60',
+    'kline_day_120': 'يومي 120',
+    'kline_day_1y': 'يومي سنة',
+    'kline_4h': '4H',
+    'kline_stat_open': 'الافتتاح',
+    'kline_stat_high': 'الأعلى',
+    'kline_stat_low': 'الأدنى',
+    'kline_stat_close': 'الإغلاق',
+    'kline_stat_vol': 'الحجم',
+    'kline_stat_chg': 'نسبة التغير',
+    'kline_no_data': 'لا توجد بيانات، يرجى التبديل إلى الرسم اليومي',
+    'stock_kline_label': 'الرسم البياني',
+    'stock_kline_day': 'يومي',
+    'stock_kline_quarter': 'ربع سنوي',
+    'stock_kline_year': 'سنوي',
+    'stock_updating': 'جاري التحديث...',
+    'stock_week52': 'نطاق 52 أسبوع',
+    'announce_title': 'مراقب الإعلانات',
+    'announce_sub': 'إعلانات XMAX الفورية',
+    'announce_loading': 'جاري تحميل الإعلانات...',
+    'announce_click_refresh': 'انقر للتحديث',
+    'announce_empty': 'لا توجد إعلانات',
+    'announce_update_failed': 'فشل التحديث',
+    'announce_updated': 'تم التحديث: ',
+    'announce_new': ' جديد',
+    'market_pre': '🟡 قبل السوق',
+    'market_open': '🟢 جاري التداول',
+    'market_after': '🟠 بعد السوق',
+    'market_closed': '🔴 مغلق',
+    'brand_subtitle': 'ورشة محتوى العلامة التجارية بالذكاء الاصطناعي',
+    'page_title': 'XBelievers · ورشة محتوى العلامة التجارية',
     'tag_line': '🌊 رؤى عميقة · محتوى ذكي',
-    'export_btn': '📥 تصدير Excel',
+    'updated_at': 'تم التحديث: ',
+    'search_failed': 'فشل البحث',
+    'detail_dev': 'ميزة التفاصيل قيد التطوير...',
+    'collapse_text': 'طي',
+    'expand_text': 'توسيع النص الكامل',
   },
   'es': {
     'hero_tag': '📰 Seguimiento en tiempo real · Actualización cada 15min',
     'hero_title': 'Centro de Noticias en Vivo',
     'hero_desc': 'XMAX · Ecosistema Musk · Seguimiento de Tweets, todo en uno',
-    'tab_news': '📰 Noticias',
-    'tab_inst': '🌐 Participaciones Institucionales',
+    'tab_news': 'Noticias',
+    'tab_inst': 'Participaciones Institucionales',
     'col_xmax': 'Noticias XMAX',
     'col_musk': 'Ecosistema Musk',
     'col_tweet': 'Tweets de Musk',
@@ -4562,19 +4939,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' para actualizar',
     'updated_prefix': 'Actualizado: ',
+    'inst_badge': '🌐 NASDAQ · Participaciones Institucionales',
     'inst_title': 'XMAX Participaciones Institucionales Globales',
-    'inst_subtitle': 'Agregando las principales participaciones institucionales globales. De Wall Street a Europa, XMAX sigue ganando reconocimiento de capital global.',
-    'inst_loading': 'Cargando datos institucionales...',
-    'inst_unavailable': 'Datos de participaciones no disponibles',
+    'inst_desc': 'Agregando las principales participaciones institucionales globales. De Wall Street a Europa, XMAX sigue ganando reconocimiento de capital global.',
+    'stat_total_count': 'Total Instituciones',
+    'stat_total_shares': 'Total Acciones',
+    'stat_total_value': 'Valor Total de Mercado',
+    'stat_ownership_pct': '% Propiedad Institucional',
+    'map_title': 'Distribución Global de Instituciones',
+    'map_loading': 'Cargando datos del mapa...',
+    'map_legend_na': 'Norteamérica',
+    'map_legend_eu': 'Europa',
+    'map_legend_asia': 'Asia',
+    'map_legend_other': 'Otros',
+    'table_title': 'Detalles de Instituciones',
+    'table_search': 'Buscar institución...',
+    'th_index': '#',
+    'th_name': 'Institución',
+    'th_cn_name': 'Nombre Chino',
+    'th_shares': 'Acciones en Posesión',
+    'th_change': 'Cambio (Acciones)',
+    'th_change_pct': 'Cambio %',
+    'th_value': 'Valor de Mercado (USD)',
+    'th_date': 'Fecha',
+    'table_loading': 'Cargando datos institucionales...',
+    'table_empty': 'Sin datos de participaciones institucionales',
+    'nasdaq_unavailable': 'Datos de Nasdaq no disponibles temporalmente',
+    'nasdaq_unavailable_desc': 'La página de Nasdaq muestra que los datos de participaciones institucionales de XMAX no están disponibles actualmente. Esto suele significar que ninguna institución ha presentado informes trimestrales 13F, o los datos se están actualizando.',
+    'nasdaq_link': '🔗 Ver en el sitio web de Nasdaq',
+    'total_institutions': 'Total {} instituciones',
+    'no_data_export': 'Sin datos para exportar',
+    'export_done': '✅ Archivo Excel descargado',
+    'export_title': 'XMAX Participaciones Institucionales Globales',
+    'kline_modal_title': '📈 XMAX Gráfico de Velas',
+    'kline_day_60': 'Diario 60d',
+    'kline_day_120': 'Diario 120d',
+    'kline_day_1y': 'Diario 1A',
+    'kline_4h': '4H',
+    'kline_stat_open': 'Apertura',
+    'kline_stat_high': 'Máximo',
+    'kline_stat_low': 'Mínimo',
+    'kline_stat_close': 'Cierre',
+    'kline_stat_vol': 'Volumen',
+    'kline_stat_chg': 'Cambio %',
+    'kline_no_data': 'Sin datos, cambie a gráfico diario',
+    'stock_kline_label': 'Gráfico K-line',
+    'stock_kline_day': 'Diario',
+    'stock_kline_quarter': 'Trimestral',
+    'stock_kline_year': 'Anual',
+    'stock_updating': 'Actualizando...',
+    'stock_week52': 'Rango 52 Semanas',
+    'announce_title': 'Monitor de Anuncios',
+    'announce_sub': 'Anuncios XMAX en Tiempo Real',
+    'announce_loading': 'Cargando anuncios...',
+    'announce_click_refresh': 'Clic para actualizar',
+    'announce_empty': 'Sin anuncios',
+    'announce_update_failed': 'Actualización fallida',
+    'announce_updated': 'Actualizado: ',
+    'announce_new': ' nuevo(s)',
+    'market_pre': '🟡 Pre-mercado',
+    'market_open': '🟢 En Negociación',
+    'market_after': '🟠 Post-mercado',
+    'market_closed': '🔴 Cerrado',
+    'brand_subtitle': 'Taller de Contenido de Marca con IA',
+    'page_title': 'XBelievers · Taller de Contenido de Marca',
     'tag_line': '🌊 Perspectivas · Contenido Inteligente',
-    'export_btn': '📥 Exportar Excel',
+    'updated_at': 'Actualizado: ',
+    'search_failed': 'Búsqueda fallida',
+    'detail_dev': 'Función de detalles en desarrollo...',
+    'collapse_text': 'Contraer',
+    'expand_text': 'Expandir texto completo',
   },
   'he': {
     'hero_tag': '📰 מעקב בזמן אמת · רענון אוטומטי כל 15 דקות',
     'hero_title': 'מרכז החדשות בזמן אמת',
     'hero_desc': 'עדכוני XMAX · מערכת מאסק · מעקב ציוצים, הכל במקום אחד',
-    'tab_news': '📰 חדשות',
-    'tab_inst': '🌐 אחזקות מוסדיות',
+    'tab_news': 'חדשות',
+    'tab_inst': 'אחזקות מוסדיות',
     'col_xmax': 'חדשות XMAX',
     'col_musk': 'מערכת מאסק',
     'col_tweet': 'ציוצי מאסק',
@@ -4585,19 +5026,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' עד לרענון',
     'updated_prefix': 'עודכן: ',
+    'inst_badge': '🌐 NASDAQ · אחזקות מוסדיות',
     'inst_title': 'XMAX אחזקות מוסדיות גלובליות',
-    'inst_subtitle': 'צבירת האחזקות המוסדיות הגלובליות המובילות. מוול סטריט ועד אירופה, XMAX ממשיכה לזכות באמון ההון הגלובלי.',
-    'inst_loading': 'טוען נתונים מוסדיים...',
-    'inst_unavailable': 'נתוני אחזקות אינם זמינים כרגע',
+    'inst_desc': 'צבירת האחזקות המוסדיות הגלובליות המובילות. מוול סטריט ועד אירופה, XMAX ממשיכה לזכות באמון ההון הגלובלי.',
+    'stat_total_count': 'סה״כ מוסדות',
+    'stat_total_shares': 'סה״כ מניות',
+    'stat_total_value': 'סה״כ שווי שוק',
+    'stat_ownership_pct': 'אחוז החזקה מוסדית',
+    'map_title': 'התפלגות מוסדות גלובלית',
+    'map_loading': 'טוען נתוני מפה...',
+    'map_legend_na': 'צפון אמריקה',
+    'map_legend_eu': 'אירופה',
+    'map_legend_asia': 'אסיה',
+    'map_legend_other': 'אחר',
+    'table_title': 'פרטי מוסדות',
+    'table_search': 'חפש מוסד...',
+    'th_index': '#',
+    'th_name': 'מוסד',
+    'th_cn_name': 'שם סיני',
+    'th_shares': 'מניות מוחזקות',
+    'th_change': 'שינוי (מניות)',
+    'th_change_pct': 'שינוי %',
+    'th_value': 'שווי שוק (USD)',
+    'th_date': 'תאריך',
+    'table_loading': 'טוען נתונים מוסדיים...',
+    'table_empty': 'אין נתוני אחזקות מוסדיות',
+    'nasdaq_unavailable': 'נתוני Nasdaq אינם זמינים כרגע',
+    'nasdaq_unavailable_desc': 'דף Nasdaq מראה שנתוני האחזקות המוסדיות של XMAX אינם זמינים כרגע. בדרך כלל המשמעות היא שטרם הוגשו דוחות 13F רבעוניים, או שהנתונים מתעדכנים.',
+    'nasdaq_link': '🔗 צפה באתר Nasdaq',
+    'total_institutions': 'סה״כ {} מוסדות',
+    'no_data_export': 'אין נתונים לייצוא',
+    'export_done': '✅ קובץ Excel הורד',
+    'export_title': 'XMAX אחזקות מוסדיות גלובליות',
+    'kline_modal_title': '📈 XMAX גרף נרות',
+    'kline_day_60': 'יומי 60',
+    'kline_day_120': 'יומי 120',
+    'kline_day_1y': 'יומי שנה',
+    'kline_4h': '4H',
+    'kline_stat_open': 'פתיחה',
+    'kline_stat_high': 'גבוה',
+    'kline_stat_low': 'נמוך',
+    'kline_stat_close': 'סגירה',
+    'kline_stat_vol': 'נפח',
+    'kline_stat_chg': 'שינוי %',
+    'kline_no_data': 'אין נתונים, עבור לגרף יומי',
+    'stock_kline_label': 'גרף K-line',
+    'stock_kline_day': 'יומי',
+    'stock_kline_quarter': 'רבעוני',
+    'stock_kline_year': 'שנתי',
+    'stock_updating': 'מעדכן...',
+    'stock_week52': 'טווח 52 שבועות',
+    'announce_title': 'מעקב הודעות',
+    'announce_sub': 'הודעות XMAX בזמן אמת',
+    'announce_loading': 'טוען הודעות...',
+    'announce_click_refresh': 'לחץ לרענון',
+    'announce_empty': 'אין הודעות',
+    'announce_update_failed': 'עדכון נכשל',
+    'announce_updated': 'עודכן: ',
+    'announce_new': ' חדשות',
+    'market_pre': '🟡 טרום-מסחר',
+    'market_open': '🟢 במסחר',
+    'market_after': '🟠 אחרי-מסחר',
+    'market_closed': '🔴 סגור',
+    'brand_subtitle': 'סדנת תוכן מותג מבוססת AI',
+    'page_title': 'XBelievers · סדנת תוכן מותג',
     'tag_line': '🌊 תובנות עמוקות · תוכן חכם',
-    'export_btn': '📥 ייצא לאקסל',
+    'updated_at': 'עודכן: ',
+    'search_failed': 'חיפוש נכשל',
+    'detail_dev': 'תכונת פרטים בפיתוח...',
+    'collapse_text': 'כווץ',
+    'expand_text': 'הרחב טקסט מלא',
   },
   'vi': {
     'hero_tag': '📰 Theo dõi thời gian thực · Tự động cập nhật mỗi 15 phút',
     'hero_title': 'Trung tâm Tin tức Trực tiếp',
     'hero_desc': 'Cập nhật XMAX · Hệ sinh thái Musk · Theo dõi Tweet, tất cả trong một',
-    'tab_news': '📰 Tin tức',
-    'tab_inst': '🌐 Sở hữu Tổ chức Toàn cầu',
+    'tab_news': 'Tin tức',
+    'tab_inst': 'Sở hữu Tổ chức Toàn cầu',
     'col_xmax': 'Tin XMAX',
     'col_musk': 'Hệ sinh thái Musk',
     'col_tweet': 'Phát ngôn Musk',
@@ -4608,19 +5113,83 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' đến lúc làm mới',
     'updated_prefix': 'Cập nhật lúc ',
+    'inst_badge': '🌐 NASDAQ · Sở hữu Tổ chức',
     'inst_title': 'XMAX Sở hữu Tổ chức Toàn cầu',
-    'inst_subtitle': 'Tổng hợp sở hữu của các tổ chức đầu tư hàng đầu toàn cầu. Từ Phố Wall đến Châu u, XMAX tiếp tục nhận được sự công nhận của vốn toàn cầu.',
-    'inst_loading': 'Đang tải dữ liệu tổ chức...',
-    'inst_unavailable': 'Dữ liệu sở hữu tổ chức hiện không khả dụng',
+    'inst_desc': 'Tổng hợp sở hữu của các tổ chức đầu tư hàng đầu toàn cầu. Từ Phố Wall đến Châu Âu, XMAX tiếp tục nhận được sự công nhận của vốn toàn cầu.',
+    'stat_total_count': 'Tổng số Tổ chức',
+    'stat_total_shares': 'Tổng Cổ phiếu',
+    'stat_total_value': 'Tổng Giá trị Thị trường',
+    'stat_ownership_pct': '% Sở hữu Tổ chức',
+    'map_title': 'Phân bố Tổ chức Toàn cầu',
+    'map_loading': 'Đang tải dữ liệu bản đồ...',
+    'map_legend_na': 'Bắc Mỹ',
+    'map_legend_eu': 'Châu Âu',
+    'map_legend_asia': 'Châu Á',
+    'map_legend_other': 'Khác',
+    'table_title': 'Chi tiết Tổ chức',
+    'table_search': 'Tìm kiếm tổ chức...',
+    'th_index': '#',
+    'th_name': 'Tổ chức',
+    'th_cn_name': 'Tên Tiếng Trung',
+    'th_shares': 'Cổ phiếu Nắm giữ',
+    'th_change': 'Thay đổi (CP)',
+    'th_change_pct': 'Thay đổi %',
+    'th_value': 'Giá trị Thị trường (USD)',
+    'th_date': 'Ngày',
+    'table_loading': 'Đang tải dữ liệu tổ chức...',
+    'table_empty': 'Không có dữ liệu sở hữu tổ chức',
+    'nasdaq_unavailable': 'Dữ liệu Nasdaq tạm thời không khả dụng',
+    'nasdaq_unavailable_desc': 'Trang Nasdaq cho thấy dữ liệu sở hữu tổ chức XMAX hiện không khả dụng. Điều này thường có nghĩa là chưa có tổ chức nào nộp báo cáo 13F hàng quý, hoặc dữ liệu đang được cập nhật.',
+    'nasdaq_link': '🔗 Xem trên trang Nasdaq',
+    'total_institutions': 'Tổng cộng {} tổ chức',
+    'no_data_export': 'Không có dữ liệu để xuất',
+    'export_done': '✅ Đã tải xuống file Excel',
+    'export_title': 'XMAX Sở hữu Tổ chức Toàn cầu',
+    'kline_modal_title': '📈 Biểu đồ Nến XMAX',
+    'kline_day_60': 'Ngày 60',
+    'kline_day_120': 'Ngày 120',
+    'kline_day_1y': 'Ngày 1N',
+    'kline_4h': '4H',
+    'kline_stat_open': 'Mở cửa',
+    'kline_stat_high': 'Cao nhất',
+    'kline_stat_low': 'Thấp nhất',
+    'kline_stat_close': 'Đóng cửa',
+    'kline_stat_vol': 'Khối lượng',
+    'kline_stat_chg': 'Thay đổi %',
+    'kline_no_data': 'Không có dữ liệu, vui lòng chuyển sang biểu đồ ngày',
+    'stock_kline_label': 'Biểu đồ K-line',
+    'stock_kline_day': 'Ngày',
+    'stock_kline_quarter': 'Quý',
+    'stock_kline_year': 'Năm',
+    'stock_updating': 'Đang cập nhật...',
+    'stock_week52': 'Biên độ 52 Tuần',
+    'announce_title': 'Giám sát Thông báo',
+    'announce_sub': 'Thông báo XMAX Thời gian thực',
+    'announce_loading': 'Đang tải thông báo...',
+    'announce_click_refresh': 'Nhấp để làm mới',
+    'announce_empty': 'Không có thông báo',
+    'announce_update_failed': 'Cập nhật thất bại',
+    'announce_updated': 'Cập nhật lúc ',
+    'announce_new': ' mới',
+    'market_pre': '🟡 Trước giờ giao dịch',
+    'market_open': '🟢 Đang giao dịch',
+    'market_after': '🟠 Sau giờ giao dịch',
+    'market_closed': '🔴 Đã đóng cửa',
+    'brand_subtitle': 'Xưởng Nội dung Thương hiệu AI',
+    'page_title': 'XBelievers · Xưởng Nội dung Thương hiệu',
     'tag_line': '🌊 Hiểu biết sâu sắc · Nội dung Thông minh',
-    'export_btn': '📥 Xuất Excel',
+    'updated_at': 'Cập nhật lúc ',
+    'search_failed': 'Tìm kiếm thất bại',
+    'detail_dev': 'Tính năng chi tiết đang phát triển...',
+    'collapse_text': 'Thu gọn',
+    'expand_text': 'Mở rộng toàn văn',
   },
   'th': {
     'hero_tag': '📰 ติดตามแบบเรียลไทม์ · รีเฟรชอัตโนมัติทุก 15 นาที',
     'hero_title': 'ศูนย์ข่าวตามเวลาจริง',
     'hero_desc': 'อัปเดต XMAX · ระบบนิเวศ Musk · ติดตามทวีต ทั้งหมดในที่เดียว',
-    'tab_news': '📰 ข่าวสด',
-    'tab_inst': '🌐 การถือครองของสถาบันทั่วโลก',
+    'tab_news': 'ข่าวสด',
+    'tab_inst': 'การถือครองของสถาบันทั่วโลก',
     'col_xmax': 'ข่าว XMAX',
     'col_musk': 'ระบบนิเวศ Musk',
     'col_tweet': 'ข้อความ Musk',
@@ -4631,16 +5200,85 @@ const I18N = {
     'countdown_prefix': '⏱ ',
     'countdown_suffix': ' ก่อนรีเฟรช',
     'updated_prefix': 'อัปเดตเมื่อ ',
+    'inst_badge': '🌐 NASDAQ · การถือครองของสถาบัน',
     'inst_title': 'XMAX การถือครองของสถาบันทั่วโลก',
-    'inst_subtitle': 'รวบรวมการถือครองของสถาบันการลงทุนระดับโลก จากวอลล์สตรีทถึงยุโรป XMAX ยังคงได้รับความเชื่อมั่นจากทุนทั่วโลก',
-    'inst_loading': 'กำลังโหลดข้อมูลสถาบัน...',
-    'inst_unavailable': 'ข้อมูลการถือครองของสถาบันไม่พร้อมใช้งานในขณะนี้',
+    'inst_desc': 'รวบรวมการถือครองของสถาบันการลงทุนระดับโลก จากวอลล์สตรีทถึงยุโรป XMAX ยังคงได้รับความเชื่อมั่นจากทุนทั่วโลก',
+    'stat_total_count': 'จำนวนสถาบันทั้งหมด',
+    'stat_total_shares': 'จำนวนหุ้นทั้งหมด',
+    'stat_total_value': 'มูลค่าตลาดทั้งหมด',
+    'stat_ownership_pct': '% การถือครองของสถาบัน',
+    'map_title': 'การกระจายตัวของสถาบันทั่วโลก',
+    'map_loading': 'กำลังโหลดข้อมูลแผนที่...',
+    'map_legend_na': 'อเมริกาเหนือ',
+    'map_legend_eu': 'ยุโรป',
+    'map_legend_asia': 'เอเชีย',
+    'map_legend_other': 'อื่นๆ',
+    'table_title': 'รายละเอียดสถาบัน',
+    'table_search': 'ค้นหาสถาบัน...',
+    'th_index': '#',
+    'th_name': 'สถาบัน',
+    'th_cn_name': 'ชื่อภาษาจีน',
+    'th_shares': 'จำนวนหุ้นที่ถือ',
+    'th_change': 'การเปลี่ยนแปลง (หุ้น)',
+    'th_change_pct': 'เปลี่ยนแปลง %',
+    'th_value': 'มูลค่าตลาด (USD)',
+    'th_date': 'วันที่',
+    'table_loading': 'กำลังโหลดข้อมูลสถาบัน...',
+    'table_empty': 'ไม่มีข้อมูลการถือครองของสถาบัน',
+    'nasdaq_unavailable': 'ข้อมูล Nasdaq ไม่พร้อมใช้งานชั่วคราว',
+    'nasdaq_unavailable_desc': 'หน้า Nasdaq แสดงว่าข้อมูลการถือครองของสถาบัน XMAX ไม่พร้อมใช้งานในขณะนี้ ซึ่งมักหมายความว่ายังไม่มีสถาบันใดยื่นรายงาน 13F รายไตรมาส หรือข้อมูลกำลังอยู่ในระหว่างการอัปเดต',
+    'nasdaq_link': '🔗 ดูบนเว็บไซต์ Nasdaq',
+    'total_institutions': 'รวม {} สถาบัน',
+    'no_data_export': 'ไม่มีข้อมูลที่จะส่งออก',
+    'export_done': '✅ ดาวน์โหลดไฟล์ Excel แล้ว',
+    'export_title': 'XMAX การถือครองของสถาบันทั่วโลก',
+    'kline_modal_title': '📈 XMAX กราฟแท่งเทียน',
+    'kline_day_60': 'รายวัน 60',
+    'kline_day_120': 'รายวัน 120',
+    'kline_day_1y': 'รายวัน 1ปี',
+    'kline_4h': '4H',
+    'kline_stat_open': 'เปิด',
+    'kline_stat_high': 'สูงสุด',
+    'kline_stat_low': 'ต่ำสุด',
+    'kline_stat_close': 'ปิด',
+    'kline_stat_vol': 'ปริมาณ',
+    'kline_stat_chg': 'เปลี่ยนแปลง %',
+    'kline_no_data': 'ไม่มีข้อมูล กรุณาเปลี่ยนเป็นกราฟรายวัน',
+    'stock_kline_label': 'กราฟ K-line',
+    'stock_kline_day': 'รายวัน',
+    'stock_kline_quarter': 'รายไตรมาส',
+    'stock_kline_year': 'รายปี',
+    'stock_updating': 'กำลังอัปเดต...',
+    'stock_week52': 'ช่วง 52 สัปดาห์',
+    'announce_title': 'ติดตามประกาศ',
+    'announce_sub': 'ประกาศ XMAX แบบเรียลไทม์',
+    'announce_loading': 'กำลังโหลดประกาศ...',
+    'announce_click_refresh': 'คลิกเพื่อรีเฟรช',
+    'announce_empty': 'ไม่มีประกาศ',
+    'announce_update_failed': 'อัปเดตล้มเหลว',
+    'announce_updated': 'อัปเดตเมื่อ ',
+    'announce_new': ' ใหม่',
+    'market_pre': '🟡 ก่อนตลาด',
+    'market_open': '🟢 กำลังซื้อขาย',
+    'market_after': '🟠 หลังตลาด',
+    'market_closed': '🔴 ปิดตลาด',
+    'brand_subtitle': 'เวิร์กชอปเนื้อหาแบรนด์ด้วย AI',
+    'page_title': 'XBelievers · เวิร์กชอปเนื้อหาแบรนด์',
     'tag_line': '🌊 ข้อมูลเชิงลึก · เนื้อหาอัจฉริยะ',
-    'export_btn': '📥 ส่งออก Excel',
+    'updated_at': 'อัปเดตเมื่อ ',
+    'search_failed': 'การค้นหาล้มเหลว',
+    'detail_dev': 'ฟีเจอร์รายละเอียดอยู่ระหว่างการพัฒนา...',
+    'collapse_text': 'ย่อ',
+    'expand_text': 'ขยายข้อความเต็ม',
   },
 };
 
 let currentLang = localStorage.getItem('xbelievers_lang') || 'en';
+
+function t(key) {
+  return (I18N[currentLang] || I18N['en'])[key] || I18N['en'][key] || key;
+}
+
 
 function setLanguage(lang) {
   if (!LANGS[lang]) lang = 'en';
@@ -4648,6 +5286,10 @@ function setLanguage(lang) {
   try { localStorage.setItem('xbelievers_lang', lang); } catch(e) {}
   document.documentElement.lang = lang;
   document.documentElement.dir = LANGS[lang]?.dir || 'ltr';
+
+  // 更新页面标题
+  const dict = I18N[lang] || I18N['en'];
+  document.title = dict['page_title'] || 'XBelievers';
 
   // 更新语言按钮
   const info = LANGS[lang] || LANGS['en'];
@@ -4657,7 +5299,6 @@ function setLanguage(lang) {
   if (labelEl) labelEl.textContent = info.label;
 
   // 更新所有 [data-i18n] 元素
-  const dict = I18N[lang] || I18N['en'];
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     if (dict[key]) {
@@ -4674,15 +5315,38 @@ function setLanguage(lang) {
     item.classList.toggle('active', item.dataset.lang === lang);
   });
 
-  // 重新渲染新闻（更新 UI 文字）
+  // 重新渲染新闻 UI
   const updatedEl = document.getElementById('newsUpdated');
   if (newsFeedData && updatedEl) {
     updatedEl.textContent = (dict['updated_prefix'] || '') +
       updatedEl.textContent.replace(/^[^\d]*/, '');
     try { startNewsCountdown(); } catch(e) {}
   }
+
+  // 重新渲染机构持股（如果已加载）
+  if (instData && instData.institutions && instData.institutions.length > 0) {
+    try { renderInstTable(); } catch(e) {}
+    try { renderInstStats(); } catch(e) {}
+  }
+
+  // 更新市场状态指示器
+  try {
+    const ind = document.getElementById('marketStatusIndicator');
+    if (ind && ind.className) {
+      const state = ind.className.replace('market-status ', '').trim();
+      if (state) {
+        const labels = { pre: t('market_pre'), open: t('market_open'), after: t('market_after'), closed: t('market_closed') };
+        ind.textContent = labels[state] || '';
+      }
+    }
+  } catch(e) {}
+
+  // 关闭菜单
   const menuEl = document.getElementById('langMenu');
   if (menuEl && menuEl.parentElement) menuEl.parentElement.classList.remove('open');
+
+  // 触发自定义事件，供其他组件监听
+  try { window.dispatchEvent(new CustomEvent('languagechange', { detail: { lang } })); } catch(e) {}
 }
 
 function toggleLangMenu() {
