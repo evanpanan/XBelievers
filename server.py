@@ -2726,6 +2726,51 @@ def news_search():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route('/api/news_feed', methods=['GET'])
+def news_feed():
+    """新闻板块聚合：XMAX新闻 + 马斯克生态 + 马斯克推文，每15分钟刷新"""
+    include_foreign = request.args.get('foreign', '1') == '1'
+
+    results = {
+        "success": True,
+        "xmax_news": [],
+        "musk_news": [],
+        "musk_tweets": [],
+        "updated": datetime.utcnow().isoformat(),
+    }
+
+    try:
+        # 1. XMAX 相关新闻
+        xmax_articles = search_news_aggregated("XMAX Inc stock", 10, include_foreign=include_foreign)
+        results["xmax_news"] = xmax_articles[:10]
+        print(f"[news_feed] XMAX news: {len(xmax_articles)} articles")
+
+        # 2. 马斯克生态新闻
+        musk_articles = search_news_aggregated(
+            "Elon Musk SpaceX Tesla xAI Neuralink Boring Company", 12,
+            include_foreign=include_foreign
+        )
+        results["musk_news"] = musk_articles[:12]
+        print(f"[news_feed] Musk news: {len(musk_articles)} articles")
+
+        # 3. 马斯克推文/言论（通过新闻聚合获取最新推文报道）
+        tweet_articles = search_news_aggregated(
+            "Elon Musk tweet says announced X post", 8,
+            include_foreign=include_foreign
+        )
+        # 过滤掉与 musk_news 重复的
+        seen_urls = {a.get('url', '') for a in results["musk_news"]}
+        filtered_tweets = [a for a in tweet_articles if a.get('url', '') not in seen_urls]
+        results["musk_tweets"] = filtered_tweets[:8]
+        print(f"[news_feed] Musk tweets: {len(filtered_tweets)} articles")
+
+    except Exception as e:
+        print(f"[news_feed] Error: {e}")
+        results["error"] = str(e)
+
+    return jsonify(results)
+
+
 @app.route('/api/news_radar', methods=['GET'])
 def news_radar():
     """多关键词新闻雷达（同时监控多个关键词）"""

@@ -1816,6 +1816,46 @@
     }
     .inst-table-empty .ico { font-size:36px; margin-bottom:10px; }
 
+    /* ===== 新闻板块 ===== */
+    .news-status-bar { display:flex; align-items:center; gap:16px; padding:12px 20px;
+      background:var(--card-bg); border-radius:12px; margin-bottom:20px;
+      border:1px solid var(--border); flex-wrap:wrap; }
+    .news-countdown { font-size:13px; color:var(--text2); font-variant-numeric:tabular-nums; }
+    .news-refresh-btn { padding:6px 16px; border-radius:8px; border:1px solid var(--border);
+      background:var(--btn-bg); color:var(--text); font-size:13px; cursor:pointer;
+      transition:all .2s; }
+    .news-refresh-btn:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .news-refresh-btn:active { transform:scale(.96); }
+    .news-updated { font-size:12px; color:var(--text3); margin-left:auto; }
+    .news-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+    .news-col { background:var(--card-bg); border-radius:14px; border:1px solid var(--border);
+      overflow:hidden; display:flex; flex-direction:column; }
+    .news-col-header { display:flex; align-items:center; gap:8px; padding:14px 16px;
+      border-bottom:2px solid var(--accent); font-weight:700; font-size:14px;
+      color:var(--text); background:var(--bg); }
+    .news-col-icon { font-size:16px; }
+    .news-col-count { margin-left:auto; font-size:12px; font-weight:600; color:var(--accent);
+      background:color-mix(in srgb,var(--accent) 15%,transparent); padding:3px 10px;
+      border-radius:20px; }
+    .news-col-list { flex:1; overflow-y:auto; max-height:600px; padding:8px 0; }
+    .news-loading { text-align:center; padding:40px 0; color:var(--text3); font-size:13px; }
+    .news-item { display:block; padding:12px 16px; border-bottom:1px solid var(--border);
+      cursor:pointer; transition:background .15s; text-decoration:none; color:inherit; }
+    .news-item:last-child { border-bottom:none; }
+    .news-item:hover { background:var(--hover-bg); }
+    .news-item-title { font-size:13px; font-weight:600; line-height:1.5; color:var(--text);
+      margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      overflow:hidden; }
+    .news-item-meta { display:flex; align-items:center; gap:8px; font-size:11px;
+      color:var(--text3); }
+    .news-item-source { font-weight:500; }
+    .news-item-time { opacity:.7; }
+    .news-empty { text-align:center; padding:30px 0; color:var(--text3); font-size:12px; }
+    @media (max-width:900px) {
+      .news-grid { grid-template-columns:1fr; }
+      .news-col-list { max-height:400px; }
+    }
+
   </style>
 </head>
 <body>
@@ -2053,173 +2093,53 @@
     <!-- 主Tab切换 -->
     <div class="main-tabs">
       <div class="main-tab active" onclick="switchMainTab('dashboard')">
-        <span class="tab-icon">🧭</span>内容工坊
+        <span class="tab-icon">📰</span>实时新闻
       </div>
       <div class="main-tab" onclick="switchMainTab('institutions')">
         <span class="tab-icon">🌐</span>全球机构持股
       </div>
     </div>
 
-    <!-- Tab 1: 内容工坊（原所有内容） -->
+    <!-- Tab 1: 实时新闻 -->
     <div class="tab-content active" id="tabDashboard">
-    <!-- Hero 大标题区域（保持最上方） -->
     <div class="hero" style="padding-bottom:20px">
-      <div class="hero-tag">🐋 洞察市场脉搏 · 一键智造品牌内容</div>
-      <h2>XBelievers<br><span class="hl">AI 品牌内容智能工坊</span></h2>
-      <p>实时监控 XMAX 股价与公告，全网追踪行业热点，<br>AI 自动生成海报文案、短视频脚本、深度分析文章。</p>
+      <div class="hero-tag">📰 实时追踪 · 每15分钟自动刷新</div>
+      <h2>XBelievers<br><span class="hl">实时新闻中心</span></h2>
+      <p>XMAX 动态 · 马斯克生态 · 推特追踪，一网打尽</p>
     </div>
 
-    <!-- ===== 实时新闻雷达（移到上方） ===== -->
-    <div class="news-ticker-section">
-      <div class="nt-header">
-        <div class="nt-header-left">
-          <div class="nt-title">
-            📡 行业情报雷达
-            <span class="nt-badge" id="ntBadge">待命中</span>
-          </div>
-        </div>
-        <div class="nt-controls">
-          <div class="nt-input-wrap">
-            <input class="nt-input" id="ntKeywordInput" placeholder="输入监控关键词，多个用逗号分隔，如：马斯克,SpaceX,xAI" />
-            <button class="nt-search-btn" id="ntSearchBtn" onclick="ntSearch()">搜索</button>
-          </div>
-          <div class="nt-foreign-toggle active" id="ntForeignToggle" onclick="ntToggleForeign()" title="开启后将搜索 Google News、Reuters 等海外源">
-            <span class="switch-dot"></span>
-            <span>海外源</span>
-          </div>
-          <div class="nt-interval">
-            <span>每</span>
-            <select id="ntInterval">
-              <option value="5">5 分钟</option>
-              <option value="15">15 分钟</option>
-              <option value="30" selected>30 分钟</option>
-              <option value="60">1 小时</option>
-            </select>
-            <span>刷新</span>
-          </div>
-          <button class="nt-toggle-btn" id="ntToggleBtn" onclick="ntToggleAuto()">▶ 开始监控</button>
-        </div>
-      </div>
-
-      <!-- 当前监控的关键词展示 -->
-      <div class="nt-kw-input-area" id="ntKwInputArea" style="display:none">
-        <span class="label">🔍 监控关键词：</span>
-        <div class="nt-active-keywords" id="ntActiveKeywords"></div>
-        <button class="nt-kw-add-btn" onclick="ntShowKeywordInput()">＋ 添加</button>
-      </div>
-
-      <div class="nt-keyword-tags">
-        <span style="font-size:11px;color:var(--text3);margin-right:2px">热门追踪：</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('马斯克,SpaceX,xAI,Tesla,Neuralink,XMax Inc,Boring')">🚀 马斯克系</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('OpenAI,ChatGPT,Sora')">🤖 OpenAI</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('AI,人工智能,大模型')">🧠 AI大模型</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('苹果,Apple,iPhone')">🍎 苹果</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('比亚迪,BYD,新能源车')">🔋 新能源</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('比特币,Bitcoin,加密货币')">💰 加密货币</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('华为,Huawei')">📱 华为</span>
-        <span class="nt-kw-tag" onclick="ntQuickMultiSearch('英伟达,NVIDIA')">🖥 芯片</span>
-        <span class="nt-kw-tag" onclick="ntQuickSearch('马斯克')">马斯克</span>
-        <span class="nt-kw-tag" onclick="ntQuickSearch('AI')">AI</span>
-        <span class="nt-kw-tag" onclick="ntQuickSearch('科技')">科技</span>
-      </div>
-      <div class="nt-card" id="ntCard" style="margin-top:14px">
-        <div id="ntContent">
-          <div class="nt-empty">
-            <div class="nt-empty-ico">📡</div>
-            <div>输入关键词，追踪全网行业动态</div>
-            <div style="margin-top:6px;font-size:11px;color:var(--text3)">覆盖 Google News / Reuters / TechCrunch 等主流源，海外资讯自动翻译</div>
-          </div>
-        </div>
-      </div>
+    <div class="news-status-bar">
+      <span class="news-countdown" id="newsCountdown">⏱ 自动刷新中...</span>
+      <button class="news-refresh-btn" onclick="refreshNewsFeed()">🔄 立即刷新</button>
+      <span class="news-updated" id="newsUpdated"></span>
     </div>
 
-    <!-- ===== 备用输入方式 ===== -->
-    <div class="input-area-section" style="margin-top:20px">
-      <div class="input-area">
-        <div class="demo-links" style="margin-top:0">
-          <div class="demo-links-label">更多方式：</div>
-          <div class="demo-link-list" id="demoLinks">
-            <span class="demo-link" onclick="toggleManual()">✍️ 手动输入内容</span>
-            <span class="demo-link" onclick="useBuiltinDemo()">🎯 体验演示</span>
-            <span class="demo-link" onclick="openLLMPanel()">🤖 AI 模型配置</span>
-          </div>
+    <div class="news-grid">
+      <div class="news-col">
+        <div class="news-col-header" style="--accent:#4fc3f7">
+          <span class="news-col-icon">📊</span>
+          <span>XMAX 新闻</span>
+          <span class="news-col-count" id="xmaxNewsCount">—</span>
         </div>
-
-        <!-- 手动输入面板 -->
-        <div class="manual-panel" id="manualPanel">
-          <div class="manual-panel-head">
-            <span>✍️ 手动粘贴新闻内容</span>
-            <button class="manual-close" onclick="toggleManual()">×</button>
-          </div>
-          <div class="manual-panel-body">
-            <div class="mf-row">
-              <label>新闻标题 *</label>
-              <input class="mf-inp" id="mfTitle" placeholder="输入或粘贴新闻标题" />
-            </div>
-            <div class="mf-row">
-              <label>新闻来源（媒体名称）</label>
-              <input class="mf-inp" id="mfSource" placeholder="如：36氪、澎湃新闻、新浪财经" />
-            </div>
-            <div class="mf-row">
-              <label>原文链接（可选，用于生成来源引用）</label>
-              <input class="mf-inp" id="mfUrl" placeholder="https://..." />
-            </div>
-            <div class="mf-row">
-              <label>新闻正文 * （从原文复制粘贴）</label>
-              <textarea class="mf-inp mf-textarea" id="mfBody" placeholder="将新闻正文粘贴在这里..."></textarea>
-            </div>
-            <button class="mf-submit" onclick="useManualInput()">✅ 使用此内容生成</button>
-          </div>
+        <div class="news-col-list" id="xmaxNewsList"><div class="news-loading">加载中...</div></div>
+      </div>
+      <div class="news-col">
+        <div class="news-col-header" style="--accent:#66bb6a">
+          <span class="news-col-icon">🚀</span>
+          <span>马斯克生态</span>
+          <span class="news-col-count" id="muskNewsCount">—</span>
         </div>
-
-        <!-- 错误提示区 -->
-        <div id="errorBox"></div>
-
-        <!-- 解析结果预览 -->
-        <div class="article-preview-wrap" id="previewWrap">
-          <div class="article-preview" id="articlePreview"></div>
-
-          <!-- 生成栏 -->
-          <div class="gen-bar">
-            <div class="gen-bar-info" id="llmBarInfo">
-              已解析新闻，选择要生成的内容类型：
-              <div class="gen-bar-warning" id="llmWarning" style="display:none">
-                ⚠️ LLM 未配置，将使用本地模板生成（<a href="#" onclick="openLLMPanel();return false" style="color:inherit;text-decoration:underline">点击配置</a>）
-              </div>
-            </div>
-            <div class="gen-btns">
-              <button class="gbtn gbtn-all"    onclick="genAll()">⚡ 一键全部生成</button>
-              <button class="gbtn gbtn-poster" onclick="genOne('poster')">🎨 海报文案</button>
-              <button class="gbtn gbtn-video"  onclick="genOne('video')">🎬 短视频脚本</button>
-              <button class="gbtn gbtn-article" onclick="genOne('article')">📝 深度文章</button>
-            </div>
-          </div>
-
-          <!-- 额外要求输入 -->
-          <div class="extra-req-wrap" id="extraReqWrap">
-            <div class="extra-req-toggle" onclick="toggleExtraReq()">
-              <span class="extra-req-arrow" id="extraReqArrow">▶</span>
-              <span>💡 附加要求（可选）</span>
-              <span class="extra-req-hint" id="extraReqHint"></span>
-            </div>
-            <div class="extra-req-body" id="extraReqBody" style="display:none">
-              <textarea class="extra-req-input" id="extraReqInput" placeholder="输入额外的创作要求，例如：&#10;· 把 xwin 这支股票自然融入到内容中去&#10;· 重点分析对A股市场的影响&#10;· 结尾加入「关注我获取更多」的引导&#10;· 语言风格要幽默轻松&#10;· 适合小红书平台发布" rows="3" oninput="updateExtraReqHint()"></textarea>
-              <div class="extra-req-footer">
-                <span style="font-size:11px;color:var(--text3)">💡 添加后对所有生成类型（海报/脚本/文章）生效</span>
-                <button class="extra-req-clear" onclick="clearExtraReq()">清空</button>
-              </div>
-            </div>
-          </div>
+        <div class="news-col-list" id="muskNewsList"><div class="news-loading">加载中...</div></div>
+      </div>
+      <div class="news-col">
+        <div class="news-col-header" style="--accent:#1da1f2">
+          <span class="news-col-icon">🐦</span>
+          <span>马斯克言论</span>
+          <span class="news-col-count" id="muskTweetCount">—</span>
         </div>
-
-      </div><!-- /input-area -->
-    </div><!-- /input-area-section -->
-
-    <!-- 输出区（移到最底部） -->
-    <div class="output-section" id="outputSection" style="padding-top:30px;padding-bottom:60px">
-      <div class="output-grid" id="outputGrid" style="display:none"></div>
+        <div class="news-col-list" id="muskTweetList"><div class="news-loading">加载中...</div></div>
+      </div>
     </div>
-
     </div><!-- /tabDashboard -->
 
     <!-- Tab 2: 全球机构持股 -->
@@ -4711,23 +4631,95 @@ function ntRestoreMonitorState() {
   }
 }
 
-// 回车搜索
-document.getElementById('ntKeywordInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') ntSearch();
-});
-// 刷新间隔变化时保存设置
-document.getElementById('ntInterval').addEventListener('change', ntSaveSearchSettings);
+// ===== 新闻板块 =====
+let newsFeedData = null;
+let newsTimer = null;
+const NEWS_REFRESH_MS = 15 * 60 * 1000; // 15分钟
+let newsRefreshTick = 0;
+
+async function loadNewsFeed() {
+  try {
+    const resp = await fetch(API_BASE + '/api/news_feed?foreign=1');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    newsFeedData = data;
+    newsRefreshTick = Date.now();
+    renderNewsAll(data);
+    const t = new Date();
+    document.getElementById('newsUpdated').textContent =
+      '更新于 ' + t.getHours().toString().padStart(2,'0') + ':' +
+      t.getMinutes().toString().padStart(2,'0') + ':' +
+      t.getSeconds().toString().padStart(2,'0');
+  } catch(e) {
+    console.error('新闻加载失败:', e);
+    document.getElementById('newsUpdated').textContent = '加载失败';
+    ['xmaxNewsList','muskNewsList','muskTweetList'].forEach(id => {
+      document.getElementById(id).innerHTML = '<div class="news-empty">⚠️ 加载失败，请稍后重试</div>';
+    });
+  }
+}
+
+function renderNewsAll(data) {
+  renderNewsColumn('xmaxNewsList', 'xmaxNewsCount', data.xmax_news || []);
+  renderNewsColumn('muskNewsList', 'muskNewsCount', data.musk_news || []);
+  renderNewsColumn('muskTweetList', 'muskTweetCount', data.musk_tweets || []);
+}
+
+function renderNewsColumn(listId, countId, articles) {
+  const list = document.getElementById(listId);
+  const count = document.getElementById(countId);
+  count.textContent = articles.length + ' 条';
+  if (!articles.length) {
+    list.innerHTML = '<div class="news-empty">暂无新闻</div>';
+    return;
+  }
+  list.innerHTML = articles.map(a => {
+    const title = escHtml(a.title || '无标题');
+    const source = escHtml(a.source || '未知来源');
+    const time = a.time || '';
+    const url = a.url || '#';
+    const summary = a.summary ? escHtml(a.summary).substring(0, 120) : '';
+    return `<a class="news-item" href="${url}" target="_blank" rel="noopener" title="${escHtml(a.title||'')}">
+      <div class="news-item-title">${title}</div>
+      ${summary ? '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;line-height:1.4">'+summary+'</div>' : ''}
+      <div class="news-item-meta">
+        <span class="news-item-source">${source}</span>
+        ${time ? '<span class="news-item-time">'+escHtml(time)+'</span>' : ''}
+      </div>
+    </a>`;
+  }).join('');
+}
+
+function refreshNewsFeed() {
+  document.getElementById('newsCountdown').textContent = '⏱ 刷新中...';
+  loadNewsFeed().then(() => startNewsCountdown());
+}
+
+function startNewsCountdown() {
+  if (newsTimer) clearInterval(newsTimer);
+  function tick() {
+    const elapsed = Date.now() - newsRefreshTick;
+    const remaining = Math.max(0, NEWS_REFRESH_MS - elapsed);
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    document.getElementById('newsCountdown').textContent =
+      '⏱ ' + mins + '分' + secs.toString().padStart(2,'0') + '秒 后刷新';
+    if (remaining <= 0) {
+      loadNewsFeed().then(() => startNewsCountdown());
+    }
+  }
+  tick();
+  newsTimer = setInterval(tick, 1000);
+}
 
 // ===== 初始化 =====
 (function init() {
-  // 从浏览器 localStorage 读取 LLM 配置并更新状态徽章
-  initLLMStatus();
+  // 初始化新闻板块
+  loadNewsFeed().then(() => startNewsCountdown());
   // 初始化股价监控
   initStockTicker();
   // 初始化公告监控
   initAnnouncementMonitor();
-  // 恢复新闻监控状态
-  ntRestoreMonitorState();
   // 初始化粒子背景
   initParticles();
   // 恢复上次访问的 Tab
