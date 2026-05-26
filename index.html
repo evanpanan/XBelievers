@@ -83,17 +83,15 @@
     .tag { padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600;background:linear-gradient(135deg,rgba(99,102,241,.14),rgba(139,92,246,.14));border:1px solid rgba(99,102,241,.35);color:var(--primary-light); }
 
     /* ===== translate.js 语言选择器 ===== */
-    .lang-switcher { position:relative; z-index:100; }
-    #translate { position:absolute; right:0; top:50%; transform:translateY(-50%); }
     #translate select {
-      display:flex; align-items:center; gap:6px; padding:5px 11px;
+      padding:5px 11px; padding-right:24px;
       border-radius:20px; border:1px solid var(--border); background:var(--btn-bg);
       color:var(--text); font-size:12px; font-weight:600; cursor:pointer;
       transition:all .2s; white-space:nowrap; outline:none;
       -webkit-appearance:none; -moz-appearance:none; appearance:none;
-      padding-right:24px;
       background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
       background-repeat:no-repeat; background-position:right 6px center; background-size:10px;
+      line-height:1.4;
     }
     #translate select:hover { border-color:var(--accent); background:var(--hover-bg); }
     #translate select option {
@@ -1959,7 +1957,7 @@
       </a>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="tag" data-i18n="tag_line">🌊 Deep Insights · Smart Content</div>
-        <div id="translate" class="lang-switcher"></div>
+        <div id="translate"></div>
       </div>
     </div>
   </div>
@@ -4399,7 +4397,7 @@ function t(key) {
     'countdown_prefix': '',
     'countdown_suffix': ' until next refresh'
   };
-  return DEFAULTS[key] || key;
+  return (key in DEFAULTS) ? DEFAULTS[key] : key;
 }
 
 
