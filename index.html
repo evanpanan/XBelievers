@@ -5138,30 +5138,14 @@ function initParticles() {
 <!-- ===== translate.js AI 多语言翻译 ===== -->
 <script src="https://cdn.staticfile.net/translate.js/3.18.66/translate.js"></script>
 <script>
-// ===== translate.js 配置 =====
-(function() {
-  // 限制为 10 种语言
+// ===== translate.js 配置（最小化，仅英文） =====
+window.addEventListener('load', function() {
   translate.selectLanguageTag.languages = 'english,japanese,korean,chinese_simplified,chinese_traditional,arabic,spanish,hebrew,vietnamese,thai';
-
-  // 页面默认英文，translate.js 自动翻译 DOM
   translate.language.setLocal('english');
   translate.service.use('client.edge');
-  translate.listener.start();   // 动态内容监听
-  translate.execute();          // 执行翻译
-
-  // 恢复用户上次选择的语言
-  var saved = localStorage.getItem('xbelievers_lang');
-  var langMap = {
-    'en':'english','ja':'japanese','ko':'korean',
-    'zh-CN':'chinese_simplified','zh-TW':'chinese_traditional',
-    'ar':'arabic','es':'spanish','he':'hebrew','vi':'vietnamese','th':'thai'
-  };
-  if (saved && langMap[saved] && langMap[saved] !== 'english') {
-    setTimeout(function() {
-      translate.changeLanguage(langMap[saved]);
-    }, 800);
-  }
-})();
+  translate.listener.start();
+  translate.execute();
+});
 </script>
 </body>
 </html>
