@@ -2609,7 +2609,7 @@ function toast(msg, type='') {
 
 // ===== 股价监控 =====
 const STOCK_CONFIG = {
-  symbol: 'XWIN',  // XMAX Inc. - 纳斯达克上市公司
+  symbol: 'XMAX',  // XMAX Inc. - 纳斯达克上市公司
   name: 'XMax',
   exchange: 'NASDAQ',
   updateInterval: 600000 // 10分钟更新一次（盘外默认）
@@ -3229,7 +3229,7 @@ function initStockTicker() {
         fetchStockData();
       } else if (e.target.closest('.stock-price-main') || e.target.closest('.stock-stats')) {
         // 点击价格或指标区域，打开东方财富交易页面
-        window.open('https://quote.eastmoney.com/unify/r/105.XWIN', '_blank');
+        window.open('https://quote.eastmoney.com/unify/r/105.XMAX', '_blank');
       }
     });
   }
@@ -3237,7 +3237,7 @@ function initStockTicker() {
 
 // ===== 公告监控 =====
 const ANNOUNCEMENT_CONFIG = {
-  symbol: 'XWIN',
+  symbol: 'XMAX',
   company: 'XMax',
   updateInterval: 28800000, // 8小时检查一次
   maxItems: 3  // 显示最新3条
