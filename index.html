@@ -1841,13 +1841,13 @@
     </div>
     <div class="stock-ticker-logo-text">
       <div class="stock-ticker-title">XMax</div>
-      <div class="stock-ticker-sub">NASDAQ: XWIN</div>
+      <div class="stock-ticker-sub">NASDAQ: XMAX</div>
     </div>
     <span class="sidebar-toggle" onclick="event.stopPropagation();toggleSidebar('stock')" title="收起">◀</span>
   </div>
   <div class="stock-ticker-body">
   <div class="stock-price-main" id="stockPriceMain">
-    <div class="stock-symbol">XWIN</div>
+    <div class="stock-symbol">XMAX</div>
     <div class="stock-price" id="stockPrice">--.--</div>
     <div class="stock-change" id="stockChange">--%</div>
     <div class="stock-change-label">24H</div>
@@ -1925,7 +1925,7 @@
 <div class="kline-modal-overlay" id="klineModalOverlay" onclick="if(event.target===this)closeKlineModal()">
   <div class="kline-modal">
     <div class="kline-modal-head">
-      <h3>📈 XWIN K线图</h3>
+      <h3>📈 XMAX K线图</h3>
       <div class="kline-modal-period">
         <button class="active" onclick="loadKlineModal('daily',60,this)">日K 60日</button>
         <button onclick="loadKlineModal('daily',120,this)">日K 120日</button>
@@ -2066,7 +2066,7 @@
     <div class="hero" style="padding-bottom:20px">
       <div class="hero-tag">🐋 洞察市场脉搏 · 一键智造品牌内容</div>
       <h2>XBelievers<br><span class="hl">AI 品牌内容智能工坊</span></h2>
-      <p>实时监控 XWIN 股价与公告，全网追踪行业热点，<br>AI 自动生成海报文案、短视频脚本、深度分析文章。</p>
+      <p>实时监控 XMAX 股价与公告，全网追踪行业热点，<br>AI 自动生成海报文案、短视频脚本、深度分析文章。</p>
     </div>
 
     <!-- ===== 实时新闻雷达（移到上方） ===== -->
@@ -2227,8 +2227,8 @@
       <!-- 大标题 -->
       <div class="inst-hero">
         <div class="inst-hero-badge">🌐 NASDAQ · Institutional Holdings</div>
-        <h2>XWIN <span class="hl">全球机构持股明细</span></h2>
-        <p>汇聚全球顶级投资机构的持仓全景，从华尔街到欧洲大陆，XWIN 持续获得全球资本认可与信任</p>
+        <h2>XMAX <span class="hl">全球机构持股明细</span></h2>
+        <p>汇聚全球顶级投资机构的持仓全景，从华尔街到欧洲大陆，XMAX 持续获得全球资本认可与信任</p>
       </div>
 
       <!-- 统计概览 -->
@@ -2402,7 +2402,7 @@ async function loadInstData() {
         <div class="ico">📊</div>
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Nasdaq 数据暂不可用</div>
         <div style="font-size:12px;color:var(--text3);max-width:500px;margin:0 auto;line-height:1.8">
-          Nasdaq 官方页面显示 XWIN 的机构持股数据（Institutional Holdings）<strong style="color:var(--text)">当前不可用</strong>。<br>
+          Nasdaq 官方页面显示 XMAX 的机构持股数据（Institutional Holdings）<strong style="color:var(--text)">当前不可用</strong>。<br>
           这通常意味着该股票尚未有机构提交13F季度持仓申报，或数据正在更新中。<br><br>
           <a href="https://www.nasdaq.com/market-activity/stocks/xwin/institutional-holdings" target="_blank"
              style="color:var(--primary-light);text-decoration:underline">🔗 前往 Nasdaq 官网查看</a>
@@ -2539,7 +2539,7 @@ function exportInstToExcel() {
   const rows = instData.institutions;
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Institutional Holdings</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
   html += '<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px">';
-  html += '<tr style="color:#1a1a2e;font-size:16px;font-weight:bold"><td colspan="8" style="text-align:center;padding:12px 8px;border:1px solid #ccc">XWIN 全球机构持股明细</td></tr>';
+  html += '<tr style="color:#1a1a2e;font-size:16px;font-weight:bold"><td colspan="8" style="text-align:center;padding:12px 8px;border:1px solid #ccc">XMAX 全球机构持股明细</td></tr>';
   html += '<tr style="color:#1a1a2e;font-weight:bold">';
   html += '<td>#</td><td>机构名称</td><td>中文译名</td><td>持有股数</td><td>变化(股)</td><td>变化%</td><td>持仓市值(USD)</td><td>报告日期</td></tr>';
   rows.forEach((item, idx) => {
@@ -2578,7 +2578,7 @@ function exportInstToExcel() {
   const a = document.createElement('a');
   a.href = url;
   const dateStr = new Date().toISOString().slice(0,10);
-  a.download = `XWIN_Institutional_Holdings_${dateStr}.xls`;
+  a.download = `XMAX_Institutional_Holdings_${dateStr}.xls`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2609,7 +2609,7 @@ function toast(msg, type='') {
 
 // ===== 股价监控 =====
 const STOCK_CONFIG = {
-  symbol: 'XWIN',  // XMAX Inc. - 纳斯达克上市公司
+  symbol: 'XMAX',  // XMAX Inc. - 纳斯达克上市公司
   name: 'XMax',
   exchange: 'NASDAQ',
   updateInterval: 600000 // 10分钟更新一次（盘外默认）
@@ -3229,7 +3229,7 @@ function initStockTicker() {
         fetchStockData();
       } else if (e.target.closest('.stock-price-main') || e.target.closest('.stock-stats')) {
         // 点击价格或指标区域，打开东方财富交易页面
-        window.open('https://quote.eastmoney.com/unify/r/105.XWIN', '_blank');
+        window.open('https://quote.eastmoney.com/unify/r/105.XMAX', '_blank');
       }
     });
   }
@@ -3237,7 +3237,7 @@ function initStockTicker() {
 
 // ===== 公告监控 =====
 const ANNOUNCEMENT_CONFIG = {
-  symbol: 'XWIN',
+  symbol: 'XMAX',
   company: 'XMax',
   updateInterval: 28800000, // 8小时检查一次
   maxItems: 3  // 显示最新3条
@@ -3562,17 +3562,17 @@ async function genFromAnnouncement(ann, type) {
   const article = {
     title: ann.title || '公告',
     url: ann.url || '#',
-    source: ann.source || 'XWIN',
+    source: ann.source || 'XMAX',
     fullText,
     summary: ann.title || '',
-    keywords: ['XWIN', 'XMAX', '公告'],
+    keywords: ['XMAX', 'XMAX', '公告'],
   };
 
   // 同时设置 parsedArticle（给 renderCard / copyCard 等用）
   parsedArticle = {
     title: ann.title || '公告',
     url: ann.url || '#',
-    source: ann.source || 'XWIN',
+    source: ann.source || 'XMAX',
     date: new Date().toLocaleDateString('zh-CN'),
     wordCount: fullText.length,
     summary: ann.title || '',

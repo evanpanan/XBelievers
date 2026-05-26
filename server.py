@@ -2838,8 +2838,8 @@ def fetch_single_article():
 
 @app.route('/api/stock', methods=['GET'])
 def get_stock_data():
-    """获取美股实时行情数据（支持 XWIN 等）"""
-    ticker = request.args.get('ticker', 'XWIN').upper()
+    """获取美股实时行情数据（支持 XMAX 等）"""
+    ticker = request.args.get('ticker', 'XMAX').upper()
 
     # 美股数据接口配置
     FINANCE_API_URL = "https://www.codebuddy.cn/v2/tool/financedata"
@@ -3252,7 +3252,7 @@ def _aggregate_group(group):
 @app.route('/api/stock/kline', methods=['GET'])
 def get_stock_kline():
     """获取美股K线历史数据（用于绘制K线图）"""
-    ticker = request.args.get('ticker', 'XWIN').upper()
+    ticker = request.args.get('ticker', 'XMAX').upper()
     period = request.args.get('period', 'daily')  # daily / 4h
     limit = min(int(request.args.get('limit', '120')), 500)
 
@@ -3432,7 +3432,7 @@ def get_stock_kline():
 @app.route('/api/stock/financials', methods=['GET'])
 def get_stock_financials():
     """获取美股财务指标摘要（PE、PB、换手率等）"""
-    ticker = request.args.get('ticker', 'XWIN').upper()
+    ticker = request.args.get('ticker', 'XMAX').upper()
 
     FINANCE_API_URL = "https://www.codebuddy.cn/v2/tool/financedata"
 
@@ -3469,7 +3469,7 @@ def get_stock_financials():
 @app.route('/api/announcements', methods=['GET'])
 def get_announcements():
     """获取 XMAX 公司公告（优先东方财富，备用 SEC EDGAR）"""
-    ticker = request.args.get('ticker', 'XWIN').upper()
+    ticker = request.args.get('ticker', 'XMAX').upper()
 
     try:
         announcements = []
@@ -3699,7 +3699,7 @@ def index():
 
 
 # ============================================================
-#  XWIN 机构持股数据（仅真实数据，不编造）
+#  XMAX 机构持股数据（仅真实数据，不编造）
 #  数据源优先级: Finviz → Nasdaq
 # ============================================================
 
@@ -3912,7 +3912,7 @@ def _get_country(name_en):
 
 
 def _fetch_finviz_institutional_holdings():
-    """从 Finviz 抓取 XWIN 机构持股数据（JSON嵌入在HTML中）"""
+    """从 Finviz 抓取 XMAX 机构持股数据（JSON嵌入在HTML中）"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -3920,7 +3920,7 @@ def _fetch_finviz_institutional_holdings():
     }
 
     try:
-        resp = requests.get('https://finviz.com/quote.ashx?t=XWIN', headers=headers, timeout=15)
+        resp = requests.get('https://finviz.com/quote.ashx?t=XMAX', headers=headers, timeout=15)
         if resp.status_code != 200:
             print(f"[机构持股] Finviz 返回 {resp.status_code}")
             return None
@@ -3967,7 +3967,7 @@ def _fetch_finviz_institutional_holdings():
         # 获取当前价格（多数据源尝试）
         current_price = 0
         try:
-            stock_resp = requests.get('https://query1.finance.yahoo.com/v8/finance/chart/XWIN?range=1d&interval=1d',
+            stock_resp = requests.get('https://query1.finance.yahoo.com/v8/finance/chart/XMAX?range=1d&interval=1d',
                                        headers=headers, timeout=10)
             if stock_resp.status_code == 200:
                 price_data = stock_resp.json()
@@ -3978,7 +3978,7 @@ def _fetch_finviz_institutional_holdings():
             try:
                 # 备用：从自身API获取
                 self_url = os.environ.get('VERCEL_URL', 'http://localhost:5173')
-                local_resp = requests.get(f'{self_url}/api/stock?ticker=XWIN', timeout=5)
+                local_resp = requests.get(f'{self_url}/api/stock?ticker=XMAX', timeout=5)
                 if local_resp.status_code == 200:
                     local_data = local_resp.json()
                     # 自身API返回格式: {"data": {"close": 7.24, ...}}
@@ -4041,15 +4041,15 @@ def _fetch_finviz_institutional_holdings():
 
 
 def _fetch_nasdaq_institutional_holdings(current_price=0, total_shares=43070000):
-    """从 Nasdaq API 获取 XWIN 机构持股完整数据
+    """从 Nasdaq API 获取 XMAX 机构持股完整数据
 
-    数据源: https://api.nasdaq.com/api/company/XWIN/institutional-holdings
+    数据源: https://api.nasdaq.com/api/company/XMAX/institutional-holdings
     包含: Owner Name, Date, Shares Held, Change, Change %, Value 等
     注意: 使用 subprocess + curl 代替 requests，避免 Python SSL 超时问题
     """
     import json as _json, subprocess, shlex
 
-    api_url = 'https://api.nasdaq.com/api/company/XWIN/institutional-holdings?limit=50&type=TOTAL&sortColumn=marketValue'
+    api_url = 'https://api.nasdaq.com/api/company/XMAX/institutional-holdings?limit=50&type=TOTAL&sortColumn=marketValue'
 
     try:
         # 使用 curl 获取数据（避免 Python requests 的 SSL 握手超时）
@@ -4194,7 +4194,7 @@ def _fetch_nasdaq_institutional_holdings(current_price=0, total_shares=43070000)
 
 @app.route('/api/institutional_holdings', methods=['GET'])
 def get_institutional_holdings():
-    """获取 XWIN 全球机构持股数据
+    """获取 XMAX 全球机构持股数据
 
     数据源优先级:
     1. Nasdaq API（完整 35 家机构，含 Active Positions / Change / Value 等）
@@ -4211,7 +4211,7 @@ def get_institutional_holdings():
         }
         try:
             stock_resp = requests.get(
-                'https://query1.finance.yahoo.com/v8/finance/chart/XWIN?range=1d&interval=1d',
+                'https://query1.finance.yahoo.com/v8/finance/chart/XMAX?range=1d&interval=1d',
                 headers=headers, timeout=10,
             )
             if stock_resp.status_code == 200:
@@ -4221,7 +4221,7 @@ def get_institutional_holdings():
         if current_price <= 0:
             try:
                 self_url = os.environ.get('VERCEL_URL', 'http://localhost:5173')
-                local_resp = requests.get(f'{self_url}/api/stock?ticker=XWIN', timeout=5)
+                local_resp = requests.get(f'{self_url}/api/stock?ticker=XMAX', timeout=5)
                 if local_resp.status_code == 200:
                     local_data = local_resp.json()
                     if 'data' in local_data and local_data['data'].get('close'):
@@ -4268,9 +4268,9 @@ if __name__ == '__main__':
     print("   GET  /api/providers   - 查看可用 LLM 服务商")
     print("   GET  /api/news_search - 关键词新闻搜索")
     print("   GET  /api/news_radar  - 多关键词新闻雷达")
-    print("   GET  /api/stock       - 美股实时行情 (XWIN等)")
+    print("   GET  /api/stock       - 美股实时行情 (XMAX等)")
     print("   GET  /api/announcements - 公司公告监控")
     print("   POST /api/fetch       - 抓取新闻链接")
     print("   POST /api/generate    - LLM 生成内容")
-    print("   GET  /api/institutional_holdings - XWIN 机构持股")
+    print("   GET  /api/institutional_holdings - XMAX 机构持股")
     app.run(host='0.0.0.0', port=5173, debug=False)
