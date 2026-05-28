@@ -1846,6 +1846,82 @@ def _get_proxies():
 
 
 # ============================================================
+#  GlobeNewsWire 新闻源
+# ============================================================
+
+def search_globenewswire(keyword, count=10):
+    """从 GlobeNewsWire 搜索新闻稿（公司公告、财报等官方新闻）"""
+    articles = []
+    try:
+        url = f"https://www.globenewswire.com/en/search/keyword/{quote(keyword)}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+        resp = requests.get(url, headers=headers, timeout=15, verify=False,
+                             proxies=_get_proxies())
+        if resp.status_code != 200:
+            return articles
+
+        resp.encoding = 'utf-8'
+        soup = BeautifulSoup(resp.text, 'lxml')
+
+        # GlobeNewsWire 的文章链接包含 /news-release/ 路径
+        links = soup.select('a[href*="/news-release/"]')
+        for link in links[:count]:
+            try:
+                title = link.get_text(strip=True)
+                if not title or len(title) < 10:
+                    continue
+                href = link.get('href', '')
+                if not href.startswith('http'):
+                    href = 'https://www.globenewswire.com' + href
+
+                # 从 URL 提取日期: /news-release/YYYY/MM/DD/...
+                date_str = ''
+                date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', href)
+                if date_match:
+                    date_str = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+
+                # 尝试从附近的 date-source 元素获取更精确的日期
+                parent = link.parent
+                if parent:
+                    date_el = parent.find_previous('div', class_='date-source')
+                    if date_el:
+                        date_str = date_el.get_text(strip=True).split('|')[0].strip()
+
+                # 提取来源
+                source = 'GlobeNewsWire'
+                if parent:
+                    src_el = parent.find_previous('div', class_='date-source')
+                    if src_el:
+                        src_text = src_el.get_text(strip=True)
+                        if '|' in src_text:
+                            src_part = src_text.split('|')[-1].strip()
+                            if src_part.startswith('Source:'):
+                                source = src_part.replace('Source:', '').strip()
+
+                articles.append({
+                    'title': title,
+                    'url': href,
+                    'source': source,
+                    'time': date_str,
+                    'summary': '',
+                    'is_foreign': True,
+                    'title_en': title,
+                    'title_cn': '',
+                })
+            except Exception:
+                continue
+
+        print(f"[GlobeNewsWire] keyword={keyword}, found={len(articles)}")
+    except Exception as e:
+        print(f"[GlobeNewsWire] Error: {e}")
+    return articles
+
+
+# ============================================================
 #  时间解析工具
 # ============================================================
 
@@ -2695,6 +2771,166 @@ def _batch_fetch_fulltext(articles, max_workers=8):
     print(f"[fulltext] 批量抓取完成: {ok_count}/{len(articles)} 成功")
 
 
+@app.route('/api/xmax_twitter', methods=['GET'])
+def xmax_twitter():
+    """抓取 XMAX 官方推特 @XmaxGlobal 最新推文（通过 Jina Reader）"""
+    try:
+        url = "https://r.jina.ai/https://x.com/XmaxGlobal"
+        headers = {
+            'Accept': 'text/plain',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        }
+        resp = requests.get(url, headers=headers, timeout=20, verify=False,
+                             proxies=_get_proxies())
+        if resp.status_code != 200:
+            return jsonify({"success": False, "tweets": [], "error": f"HTTP {resp.status_code}"})
+
+        raw = resp.text
+
+        # 找到推文区域的起始位置（"XMAX's posts" 或 "Pinned" 之后）
+        posts_start = 0
+        posts_marker = re.search(r"(?:XMAX's posts|Pinned)", raw)
+        if posts_marker:
+            posts_start = posts_marker.end()
+
+        # 找所有 status ID 及其位置
+        status_matches = list(re.finditer(r'https?://x\.com/XmaxGlobal/status/(\d+)', raw))
+
+        tweets = []
+        seen_ids = set()
+
+        for i, match in enumerate(status_matches):
+            tid = match.group(1)
+            if tid in seen_ids:
+                continue
+            seen_ids.add(tid)
+
+            # 推文文本在 status URL 之前的区域
+            # 范围：从上一个 status URL 结束到当前 status URL 开始
+            if i == 0:
+                text_start = posts_start
+            else:
+                text_start = status_matches[i-1].end()
+
+            text_end = match.start()
+
+            # 提取并清理文本
+            raw_text = raw[text_start:text_end]
+            clean = _clean_tweet_text(raw_text)
+
+            if not clean or len(clean) < 10:
+                continue
+
+            tweets.append({
+                'text': clean[:300],
+                'url': f"https://x.com/XmaxGlobal/status/{tid}",
+                'id': tid,
+                'source': '@XmaxGlobal',
+                'time': '',
+            })
+
+            if len(tweets) >= 10:
+                break
+
+        # 补充置顶推文：Pinned 后面到第一个 status URL 之前的文本
+        if posts_marker and status_matches:
+            pinned_text = raw[posts_marker.end():status_matches[0].start()]
+            pinned_clean = _clean_tweet_text(pinned_text)
+            if pinned_clean and len(pinned_clean) > 15:
+                already = any(pinned_clean[:50] in t['text'] or t['text'][:50] in pinned_clean for t in tweets)
+                if not already:
+                    tweets.insert(0, {
+                        'text': pinned_clean[:300],
+                        'url': 'https://x.com/XmaxGlobal',
+                        'id': '',
+                        'source': '@XmaxGlobal',
+                        'time': '',
+                        'pinned': True,
+                    })
+
+        print(f"[xmax_twitter] Found {len(tweets)} tweets via Jina Reader")
+        return jsonify({
+            "success": True,
+            "tweets": tweets,
+            "source": "jina_reader",
+            "updated": datetime.utcnow().isoformat(),
+        })
+
+    except Exception as e:
+        print(f"[xmax_twitter] Error: {e}")
+        return jsonify({"success": False, "tweets": [], "error": str(e)})
+
+
+def _clean_tweet_text(block):
+    """清理 Jina Reader 返回的推文 markdown 文本"""
+    # 移除图片标记（必须在移除链接之前）
+    clean = re.sub(r'\[!\[[^\]]*\]\([^\)]+\)\]\([^\)]+\)', '', block)
+    clean = re.sub(r'!\[Image[^\]]*\]\([^\)]+\)', '', clean)
+    clean = re.sub(r'\[Image \d+: [^\]]*\]\([^\)]+\)', '', clean)
+    # 移除 hashtag 链接，保留 hashtag 文本
+    clean = re.sub(r'\[(#[^\]]+)\]\(https?://x\.com/hashtag/[^\)]+\)', r'\1', clean)
+    # 移除用户链接，保留用户名
+    clean = re.sub(r'\[(@[^\]]+)\]\(https?://x\.com/[^\)]+\)', r'\1', clean)
+    # 移除图片 URL
+    clean = re.sub(r'https?://pbs\.twimg\.com/[^\s\)\]"]+', '', clean)
+    clean = re.sub(r'https?://abs\.twimg\.com/[^\s\)\]"]+', '', clean)
+    clean = re.sub(r'https?://t\.co/[^\s\)\]"]+', '', clean)
+    # 移除 status/photo 链接（必须在移除 status URL 之前，避免残留）
+    clean = re.sub(r'https?://x\.com/XmaxGlobal/status/\d+/photo/\d+', '', clean)
+    # 移除空的 markdown 链接 (如 [](url)) — 必须在移除 status URL 之前
+    clean = re.sub(r'\[\]\([^\)]+\)', '', clean)
+    # 移除 status URL
+    clean = re.sub(r'https?://x\.com/XmaxGlobal/status/\d+[^\s]*', '', clean)
+    # 移除残留的 /photo/N) 形式
+    clean = re.sub(r'/photo/\d+\)', '', clean)
+    # 移除任何残留的 [](...) 模式
+    clean = re.sub(r'\[([^\]]*)\]\([^\)]+\)', r'\1', clean)
+    clean = clean.strip()
+    # 最终清理：移除残留的 []( 片段
+    clean = re.sub(r'\[\]\([^)]*', '', clean)
+    # 跳过明显的非推文内容
+    skip_patterns = [
+        'Title:', 'URL Source:', 'Markdown Content:', 'Published Time:',
+    ]
+    for p in skip_patterns:
+        if clean.startswith(p):
+            return ''
+    if 'Investing in the future' in clean and 'Musk Believers' in clean:
+        return ''
+    if clean == 'Pinned':
+        return ''
+    # 移除 "Replying to" 段落（回复内容，不是原始推文）
+    # X 页面格式：Replying to\n问题1\nReplying to\n回复1\n原始推文
+    # 策略：只保留每个 "Replying to" 块中最后一行较长的内容
+    lines = clean.split('\n')
+    filtered = []
+    skip_next_short = False
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if line == 'Replying to':
+            skip_next_short = True
+            continue
+        if skip_next_short:
+            skip_next_short = False
+            # 短回复（< 30 字符）跳过
+            if len(line) < 30:
+                continue
+        filtered.append(line)
+    clean = '\n'.join(filtered)
+    if not clean or len(clean) < 10:
+        return ''
+    # 移除 "Pinned" 前缀
+    if clean.startswith('Pinned\n'):
+        clean = clean[7:].strip()
+    # 多余空行压缩 + 最终空白清理
+    clean = re.sub(r'\n{2,}', '\n', clean)
+    clean = re.sub(r'\s{2,}', ' ', clean).strip()
+    clean = re.sub(r'\n{2,}', '\n', clean).strip()
+    return clean
+
+
 @app.route('/api/news_search', methods=['GET'])
 def news_search():
     """搜索关键词相关新闻（聚合多源）"""
@@ -2740,9 +2976,25 @@ def news_feed():
     }
 
     try:
-        # 1. XMAX 相关新闻
+        # 1. XMAX 相关新闻（搜索聚合 + GlobeNewsWire 官方新闻稿）
         xmax_articles = search_news_aggregated("XMAX Inc stock", 10, include_foreign=include_foreign)
-        results["xmax_news"] = xmax_articles[:10]
+        # 补充 GlobeNewsWire 官方新闻稿
+        try:
+            gnw_articles = search_globenewswire("xmax", 10)
+            if gnw_articles:
+                existing_urls = {a.get('url', '') for a in xmax_articles}
+                for ga in gnw_articles:
+                    if ga.get('url', '') not in existing_urls:
+                        xmax_articles.append(ga)
+                        existing_urls.add(ga.get('url', ''))
+                # 按时间重新排序
+                for a in xmax_articles:
+                    if 'time_parsed' not in a:
+                        a['time_parsed'] = parse_news_time(a.get('time', ''))
+                xmax_articles.sort(key=lambda x: -x.get('time_parsed', 0))
+        except Exception as e:
+            print(f"[news_feed] GlobeNewsWire error: {e}")
+        results["xmax_news"] = xmax_articles[:15]
         print(f"[news_feed] XMAX news: {len(xmax_articles)} articles")
 
         # 2. 马斯克生态新闻
