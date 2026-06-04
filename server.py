@@ -9,8 +9,9 @@
 
 import sys
 import os
+import sqlite3
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
@@ -19,13 +20,89 @@ import json
 import time
 import threading
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, quote, urlencode
 from abc import ABC, abstractmethod
 from typing import Optional
 
 app = Flask(__name__)
 CORS(app)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'api', 'admin.db')
+XMAX_TWEET_SYNC_INTERVAL_SECONDS = 4 * 60 * 60
+_tweet_sync_started = False
+_tweet_sync_lock = threading.Lock()
+MUSK_NEWS_DB_CACHE_KEY = 'musk_news_domestic_v1'
+_musk_news_refresh_inflight = False
+_musk_news_refresh_lock = threading.Lock()
+
+
+@app.after_request
+def _no_cache_kline(resp):
+    try:
+        if request.path.startswith('/api/stock/kline'):
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            resp.headers['Pragma'] = 'no-cache'
+            resp.headers['Expires'] = '0'
+    except Exception:
+        pass
+    return resp
+
+
+@app.route('/api/finnhub/candles', methods=['GET'])
+def finnhub_candles():
+    symbol = (request.args.get('symbol') or request.args.get('ticker') or 'XMAX').upper()
+    resolution = (request.args.get('resolution') or 'D').strip()
+    _from = int(request.args.get('from') or '0')
+    _to = int(request.args.get('to') or '0')
+
+    token = (os.environ.get('FINNHUB_API_KEY') or '').strip()
+    if not token:
+        return jsonify({"success": False, "error": "FINNHUB_API_KEY 未配置"}), 500
+
+    if not symbol or not resolution or _from <= 0 or _to <= 0 or _to <= _from:
+        return jsonify({"success": False, "error": "参数错误"}), 400
+
+    url = "https://finnhub.io/api/v1/stock/candle"
+    try:
+        r = requests.get(url, params={
+            "symbol": symbol,
+            "resolution": resolution,
+            "from": _from,
+            "to": _to,
+            "token": token,
+        }, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        j = r.json()
+        if j.get('s') != 'ok':
+            return jsonify({"success": False, "error": j.get('s') or "Finnhub 返回异常", "raw": j}), 503
+
+        t_arr = j.get('t') or []
+        o_arr = j.get('o') or []
+        h_arr = j.get('h') or []
+        l_arr = j.get('l') or []
+        c_arr = j.get('c') or []
+        v_arr = j.get('v') or []
+
+        n = min(len(t_arr), len(o_arr), len(h_arr), len(l_arr), len(c_arr), len(v_arr))
+        data = []
+        for i in range(n):
+            data.append({
+                "time": int(t_arr[i]),
+                "open": float(o_arr[i]),
+                "high": float(h_arr[i]),
+                "low": float(l_arr[i]),
+                "close": float(c_arr[i]),
+                "volume": float(v_arr[i]),
+            })
+
+        resp = jsonify({"success": True, "data": data, "source": "finnhub"})
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 503
 
 # ============================================================
 #  LLM 服务抽象层 —— 支持多家 OpenAI 兼容 API
@@ -1051,6 +1128,9 @@ def extract_keywords(text):
 _news_cache = {}       # key -> {"articles": [...], "timestamp": float}
 _news_cache_lock = threading.Lock()
 NEWS_CACHE_TTL = 300   # 缓存 5 分钟
+_musk_news_runtime_cache = {"articles": [], "timestamp": 0.0}
+_musk_news_runtime_cache_lock = threading.Lock()
+MUSK_NEWS_RUNTIME_CACHE_TTL = 300
 
 
 def _cache_get(keyword):
@@ -2051,6 +2131,75 @@ def deduplicate_articles(articles):
     return unique
 
 
+
+XMAX_NEWS_CONTEXT_KEYWORDS = [
+    'stock', 'stocks', 'share', 'shares', 'nasdaq', 'investor', 'investors',
+    'offering', 'offer', 'filing', 'market', 'markets', 'security', 'securities',
+    'inc', 'inc.', 'announcement', 'press release', '股票', '股价', '纳斯达克',
+    '投资者', '公告', '新闻稿', '募资', '融资', '发行', '股份'
+]
+
+
+def is_xmax_relevant_article(article):
+    title = str((article or {}).get('title') or '').strip().lower()
+    summary = str((article or {}).get('summary') or '').strip().lower()
+    source = str((article or {}).get('source') or '').strip().lower()
+    text = ' '.join([title, summary, source]).strip()
+    if not text:
+        return False
+    if 'xmax inc' in text or 'xmax inc.' in text or '纳斯达克股票代码：xmax' in text:
+        return True
+    if not re.search(r'\bxmax\b', text, re.I):
+        return False
+    return any(keyword in text for keyword in XMAX_NEWS_CONTEXT_KEYWORDS)
+
+
+def collect_xmax_relevant_news(include_foreign=True, limit=12):
+    articles = []
+    try:
+        rss_items = _fetch_rss_items(
+            "https://feeds.finance.yahoo.com/rss/2.0/headline?s=XMAX",
+            limit=max(12, limit),
+            ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        )
+        for item in rss_items:
+            item["source"] = "Yahoo Finance"
+            item["time_parsed"] = int(item.get("time_ts") or 0)
+            if is_xmax_relevant_article(item):
+                articles.append(item)
+    except Exception as e:
+        print(f"[collect_xmax_relevant_news] yahoo rss error: {e}")
+
+    try:
+        gnw_articles = search_globenewswire("XMax Inc", max(12, limit))
+        for item in gnw_articles:
+            if 'time_parsed' not in item:
+                item['time_parsed'] = parse_news_time(item.get('time', ''))
+            if is_xmax_relevant_article(item):
+                articles.append(item)
+    except Exception as e:
+        print(f"[collect_xmax_relevant_news] globenewswire error: {e}")
+
+    if len(deduplicate_articles(articles)) < limit:
+        try:
+            agg_articles = search_news_aggregated("XMAX Inc stock NASDAQ", max(18, limit), include_foreign=include_foreign)
+            for item in agg_articles:
+                if 'time_parsed' not in item:
+                    item['time_parsed'] = parse_news_time(item.get('time', ''))
+                if is_xmax_relevant_article(item):
+                    articles.append(item)
+        except Exception as e:
+            print(f"[collect_xmax_relevant_news] aggregated error: {e}")
+
+    unique = deduplicate_articles(articles)
+    for item in unique:
+        if 'time_parsed' not in item:
+            item['time_parsed'] = parse_news_time(item.get('time', ''))
+    unique = [item for item in unique if is_xmax_relevant_article(item)]
+    unique.sort(key=lambda x: -x.get('time_parsed', 0))
+    return unique[:limit]
+
+
 # ============================================================
 #  简易翻译：英文标题 → 中文（使用 free 翻译接口）
 # ============================================================
@@ -2076,21 +2225,40 @@ def translate_title_to_chinese(title_en):
 
     translated = ''
 
-    # 方案1: 使用 MyMemory 翻译 API（免费，无需 key）
+    # 方案1: translate.googleapis.com（免费，无需 key）
     try:
-        url = f"https://api.mymemory.translated.net/get?q={quote(title_en)}&langpair=en|zh-CN"
-        resp = requests.get(url, timeout=5, verify=False)
+        url = "https://translate.googleapis.com/translate_a/single"
+        resp = requests.get(url, params={
+            "client": "gtx",
+            "sl": "en",
+            "tl": "zh-CN",
+            "dt": "t",
+            "q": title_en,
+        }, timeout=6, verify=False)
         if resp.status_code == 200:
             data = resp.json()
-            translated = data.get('responseData', {}).get('translatedText', '')
-            # MyMemory 有时会返回大写文本，做基本清理
-            if translated and translated.upper() == translated and len(translated) > 20:
-                # 可能翻译失败，尝试下一个方案
-                translated = ''
+            pieces = []
+            for seg in (data[0] if isinstance(data, list) and data else []):
+                if isinstance(seg, list) and seg and isinstance(seg[0], str):
+                    pieces.append(seg[0])
+            translated = ''.join(pieces).strip()
     except:
         pass
 
-    # 方案2: 使用 LibreTranslate（免费开源）
+    # 方案2: 使用 MyMemory 翻译 API（免费，无需 key）
+    try:
+        if not translated:
+            url = f"https://api.mymemory.translated.net/get?q={quote(title_en)}&langpair=en|zh-CN"
+            resp = requests.get(url, timeout=5, verify=False)
+            if resp.status_code == 200:
+                data = resp.json()
+                translated = data.get('responseData', {}).get('translatedText', '')
+                if translated and translated.upper() == translated and len(translated) > 20:
+                    translated = ''
+    except:
+        pass
+
+    # 方案3: 使用 LibreTranslate（免费开源）
     if not translated:
         try:
             url = f"https://libretranslate.de/translate"
@@ -2114,18 +2282,31 @@ def translate_title_to_chinese(title_en):
 
 def batch_translate_titles(articles):
     """批量翻译英文标题（带线程并行）"""
-    foreign_articles = [a for a in articles if a.get('is_foreign') and a.get('title_en')]
-    if not foreign_articles:
+    candidates = []
+    for a in articles:
+        try:
+            if a.get('title_cn'):
+                continue
+            src = (a.get('title_en') or a.get('title') or '').strip()
+            if not src:
+                continue
+            candidates.append((a, src))
+        except Exception:
+            continue
+
+    if not candidates:
         return articles
 
-    def _translate(a):
-        cn = translate_title_to_chinese(a['title_en'])
+    def _translate(a, src):
+        cn = translate_title_to_chinese(src)
         if cn:
             a['title_cn'] = cn
+            if not a.get('title_en'):
+                a['title_en'] = src
 
     threads = []
-    for a in foreign_articles:
-        t = threading.Thread(target=_translate, args=(a,))
+    for a, src in candidates:
+        t = threading.Thread(target=_translate, args=(a, src))
         threads.append(t)
         t.start()
 
@@ -2134,6 +2315,265 @@ def batch_translate_titles(articles):
 
     return articles
 
+
+_text_translate_cache = {}
+_text_translate_cache_lock = threading.Lock()
+_article_translate_cache = {}
+_article_translate_cache_lock = threading.Lock()
+
+
+def _get_request_lang():
+    lang = (request.args.get('lang') or '').strip().lower()
+    if lang in ('zh', 'en'):
+        return lang
+    accept_lang = (request.headers.get('Accept-Language') or '').strip().lower()
+    if accept_lang.startswith('zh'):
+        return 'zh'
+    if accept_lang.startswith('en'):
+        return 'en'
+    return 'zh'
+
+
+def _get_translate_flag(lang: str):
+    raw = (request.args.get('translate') or '').strip()
+    if raw in ('0', 'false', 'False'):
+        return False
+    if raw in ('1', 'true', 'True'):
+        return True
+    return lang == 'zh'
+
+
+def _get_llm_config_from_request_or_store():
+    provider = (request.args.get('provider') or request.args.get('provider_name') or '').strip()
+    api_key = (request.args.get('api_key') or '').strip()
+    model = (request.args.get('model') or '').strip()
+    if provider and api_key:
+        return {"provider": provider, "api_key": api_key, "model": model or None}
+    try:
+        store = _llm_config_store if isinstance(_llm_config_store, dict) else {}
+    except Exception:
+        store = {}
+    provider = (store.get('provider') or store.get('provider_name') or '').strip()
+    api_key = (store.get('api_key') or '').strip()
+    model = (store.get('model') or '').strip()
+    if provider and api_key:
+        return {"provider": provider, "api_key": api_key, "model": model or None}
+    return None
+
+
+def _split_text_chunks(text: str, max_len: int = 900):
+    s = (text or '').strip()
+    if not s:
+        return []
+    parts = re.split(r'\n{2,}', s)
+    chunks = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if len(p) <= max_len:
+            chunks.append(p)
+            continue
+        sentences = re.split(r'(?<=[\.\!\?\u3002\uff01\uff1f])\s+', p)
+        buf = ''
+        for sent in sentences:
+            sent = sent.strip()
+            if not sent:
+                continue
+            if not buf:
+                buf = sent
+                continue
+            if len(buf) + 1 + len(sent) <= max_len:
+                buf = buf + ' ' + sent
+            else:
+                chunks.append(buf)
+                buf = sent
+        if buf:
+            chunks.append(buf)
+    return chunks
+
+
+def _translate_chunk_en_to_zh(chunk: str):
+    if not chunk or len(chunk) < 5:
+        return ''
+    key = hashlib.md5(chunk.strip().encode('utf-8')).hexdigest()
+    with _text_translate_cache_lock:
+        cached = _text_translate_cache.get(key)
+        if cached is not None:
+            return cached
+
+    translated = ''
+
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        resp = requests.get(url, params={
+            "client": "gtx",
+            "sl": "en",
+            "tl": "zh-CN",
+            "dt": "t",
+            "q": chunk,
+        }, timeout=8, verify=False)
+        if resp.status_code == 200:
+            data = resp.json()
+            pieces = []
+            for seg in (data[0] if isinstance(data, list) and data else []):
+                if isinstance(seg, list) and seg and isinstance(seg[0], str):
+                    pieces.append(seg[0])
+            translated = ''.join(pieces).strip()
+    except Exception:
+        pass
+
+    try:
+        if not translated:
+            resp = requests.post(
+                "https://libretranslate.de/translate",
+                json={'q': chunk, 'source': 'en', 'target': 'zh', 'format': 'text'},
+                timeout=8,
+                verify=False,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                translated = data.get('translatedText', '') or ''
+    except Exception:
+        pass
+
+    if not translated:
+        try:
+            url = f"https://api.mymemory.translated.net/get?q={quote(chunk)}&langpair=en|zh-CN"
+            resp = requests.get(url, timeout=8, verify=False)
+            if resp.status_code == 200:
+                data = resp.json()
+                translated = data.get('responseData', {}).get('translatedText', '') or ''
+        except Exception:
+            pass
+
+    with _text_translate_cache_lock:
+        _text_translate_cache[key] = translated
+
+    return translated
+
+
+def translate_text_en_to_zh(text: str):
+    s = (text or '').strip()
+    if not s:
+        return ''
+    if not is_english_content(s[:1200]):
+        return ''
+    chunks = _split_text_chunks(s, max_len=900)
+    if not chunks:
+        return ''
+    out = []
+    for ch in chunks:
+        tr = _translate_chunk_en_to_zh(ch)
+        out.append(tr if tr else ch)
+    return '\n\n'.join(out).strip()
+
+
+def translate_articles_to_lang(articles, lang: str, translate: bool, llm_cfg=None):
+    if not articles:
+        return articles
+    if not translate or lang != 'zh':
+        for a in articles:
+            if not a.get('title_en') and a.get('title'):
+                a['title_en'] = a.get('title', '')
+        return articles
+
+    llm_cfg = llm_cfg or _get_llm_config_from_request_or_store()
+
+    def _cache_key(a):
+        url = (a.get('url') or '').strip()
+        base = (a.get('title_en') or a.get('title') or '') + '|' + (a.get('summary') or '')
+        ft = a.get('fullText') or ''
+        sig = base + '|' + ft[:2000]
+        return hashlib.md5((url + '|' + sig).encode('utf-8')).hexdigest()
+
+    for a in articles:
+        title_src = (a.get('title_en') or a.get('title') or '').strip()
+        if not a.get('title_en') and title_src:
+            a['title_en'] = title_src
+        if 'summary_en' not in a:
+            a['summary_en'] = a.get('summary', '')
+        if 'fullText_en' not in a:
+            a['fullText_en'] = a.get('fullText', '')
+
+        combined = f"{a.get('title_en','')} {a.get('summary_en','')} {(a.get('fullText_en','') or '')[:600]}"
+        if not is_english_content(combined):
+            if not a.get('title_cn') and a.get('title'):
+                a['title_cn'] = a.get('title')
+            if 'summary_cn' not in a and a.get('summary'):
+                a['summary_cn'] = a.get('summary')
+            if 'fullText_cn' not in a and a.get('fullText'):
+                a['fullText_cn'] = a.get('fullText')
+            a['title'] = a.get('title_cn') or a.get('title') or a.get('title_en') or ''
+            if a.get('summary_cn'):
+                a['summary'] = a.get('summary_cn')
+            if a.get('fullText_cn'):
+                a['fullText'] = a.get('fullText_cn')
+            continue
+
+        ck = _cache_key(a)
+        now_ts = time.time()
+        with _article_translate_cache_lock:
+            hit = _article_translate_cache.get(ck)
+            if hit and (now_ts - hit.get('ts', 0)) < 86400:
+                a['title_cn'] = hit.get('title_cn', '') or a.get('title_cn', '')
+                a['summary_cn'] = hit.get('summary_cn', '') or a.get('summary_cn', '')
+                a['fullText_cn'] = hit.get('fullText_cn', '') or a.get('fullText_cn', '')
+                a['title'] = a.get('title_cn') or a.get('title_en') or ''
+                if a.get('summary_cn'):
+                    a['summary'] = a.get('summary_cn')
+                if a.get('fullText_cn'):
+                    a['fullText'] = a.get('fullText_cn')
+                continue
+
+        translated_title = a.get('title_cn') or translate_title_to_chinese(title_src) or ''
+        if not translated_title:
+            translated_title = translate_text_en_to_zh(title_src) or ''
+        translated_summary = a.get('summary_cn') or translate_text_en_to_zh(a.get('summary_en') or '') or ''
+        translated_full = a.get('fullText_cn') or translate_text_en_to_zh(a.get('fullText_en') or '') or ''
+
+        if llm_cfg and llm_cfg.get('provider') and llm_cfg.get('api_key'):
+            try:
+                base_article = {
+                    'title': title_src,
+                    'summary': a.get('summary_en') or '',
+                    'fullText': a.get('fullText_en') or '',
+                }
+                llm_out = translate_article_with_llm(
+                    base_article,
+                    llm_cfg['provider'],
+                    llm_cfg['api_key'],
+                    llm_cfg.get('model'),
+                )
+                if llm_out and llm_out.get('is_translated'):
+                    translated_title = llm_out.get('title') or translated_title
+                    translated_summary = llm_out.get('summary') or translated_summary
+                    translated_full = llm_out.get('fullText') or translated_full
+            except Exception:
+                pass
+
+        if translated_title:
+            a['title_cn'] = translated_title
+        if translated_summary:
+            a['summary_cn'] = translated_summary
+        if translated_full:
+            a['fullText_cn'] = translated_full
+
+        a['title'] = a.get('title_cn') or a.get('title_en') or ''
+        if a.get('summary_cn'):
+            a['summary'] = a.get('summary_cn')
+        if a.get('fullText_cn'):
+            a['fullText'] = a.get('fullText_cn')
+
+        with _article_translate_cache_lock:
+            _article_translate_cache[ck] = {
+                "ts": now_ts,
+                "title_cn": a.get('title_cn', ''),
+                "summary_cn": a.get('summary_cn', ''),
+                "fullText_cn": a.get('fullText_cn', ''),
+            }
+
+    return articles
 
 # ============================================================
 #  英文检测 & LLM 翻译模块
@@ -2375,6 +2815,403 @@ def search_news_multi_keywords(keywords, count_per_keyword=5, include_foreign=Tr
     return result
 
 
+DOMESTIC_MEDIA_SOURCE_KEYWORDS = [
+    '东方财富', '财联社', '新浪', '新浪财经', '腾讯', '腾讯新闻', '36氪', '虎嗅',
+    '澎湃', '界面', '第一财经', '财新', '网易', '搜狐', '凤凰', '证券时报',
+    '中国证券报', '上海证券报', '华尔街见闻', '智东西', '钛媒体', '快科技', 'cnBeta',
+    '同花顺', '金融界', '观察者网', '经济观察报', '财经网', '和讯网', 'IT之家', '极客公园'
+]
+
+DOMESTIC_MEDIA_DOMAINS = [
+    'eastmoney.com', 'cls.cn', 'sina.com.cn', 'finance.sina.com.cn', 'qq.com',
+    'news.qq.com', '36kr.com', 'huxiu.com', 'thepaper.cn', 'jiemian.com',
+    'yicai.com', 'caixin.com', '163.com', 'sohu.com', 'ifeng.com', 'stcn.com',
+    'cs.com.cn', 'cnstock.com', 'wallstreetcn.com', 'zhidx.com', 'tmtpost.com',
+    'cnbeta.com', '10jqka.com.cn', 'jrj.com.cn', 'guancha.cn', 'eeo.com.cn',
+    'caijing.com.cn', 'hexun.com', 'ithome.com', 'geekpark.net'
+]
+
+MUSK_TOPIC_KEYWORDS = [
+    '马斯克', 'spacex', '特斯拉', 'tesla', 'xai', 'grok', '星链', 'starlink',
+    '星舰', 'starship', 'neuralink', '脑机接口', 'robotaxi', 'optimus', '擎天柱'
+]
+
+MUSK_BLOCKED_SOURCE_KEYWORDS = ['汽车之家', 'autohome']
+MUSK_BLOCKED_URL_KEYWORDS = ['autohome.com', 'chejiahao.autohome.com']
+MUSK_SOCIAL_URL_KEYWORDS = [
+    'x.com/', 'twitter.com/', 't.co/', 'mobile.twitter.com/',
+    'publish.x.com/', 'platform.x.com/'
+]
+MUSK_NEWS_RSS_URLS = [
+    "https://news.google.com/rss/search?q=Elon+Musk+OR+SpaceX+OR+Tesla+OR+xAI+OR+Neuralink&hl=en-US&gl=US&ceid=US:en",
+    "https://news.google.com/rss/search?q=%E9%A9%AC%E6%96%AF%E5%85%8B+OR+SpaceX+OR+%E7%89%B9%E6%96%AF%E6%8B%89+OR+xAI+OR+Neuralink&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+]
+MUSK_NEWS_SUPPLEMENTAL_QUERIES = [
+    "Elon Musk Tesla SpaceX xAI Neuralink",
+    "马斯克 特斯拉 SpaceX xAI Neuralink",
+    "SpaceX Starlink Starship Tesla Robotaxi Grok",
+]
+
+FOREIGN_NEWS_DOMAINS = [
+    'reuters.com', 'bloomberg.com', 'cnbc.com', 'yahoo.com', 'finance.yahoo.com',
+    'marketwatch.com', 'investing.com', 'ft.com', 'wsj.com', 'nytimes.com',
+    'forbes.com', 'cnn.com', 'bbc.com', 'apnews.com', 'techcrunch.com',
+    'theverge.com', 'businessinsider.com', 'seekingalpha.com', 'benzinga.com',
+    'teslarati.com', 'electrek.co', 'foxbusiness.com'
+]
+
+
+def is_domestic_media_article(article):
+    source = str((article or {}).get('source') or '').strip().lower()
+    raw_url = str((article or {}).get('url') or '').strip()
+    if not raw_url:
+        return False
+    try:
+        host = (urlparse(raw_url).hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+    except Exception:
+        host = ""
+    if host:
+        return any(host == d or host.endswith("." + d) for d in DOMESTIC_MEDIA_DOMAINS)
+    return any(k.lower() in source for k in DOMESTIC_MEDIA_SOURCE_KEYWORDS)
+
+
+def is_probably_foreign_news_domain(url):
+    url = str(url or '').strip().lower()
+    if not url:
+        return False
+    return any(domain in url for domain in FOREIGN_NEWS_DOMAINS)
+
+
+def is_musk_topic_article(article):
+    haystack = ' '.join([
+        str((article or {}).get('title') or ''),
+        str((article or {}).get('summary') or ''),
+        str((article or {}).get('source') or ''),
+    ]).lower()
+    return any(keyword in haystack for keyword in MUSK_TOPIC_KEYWORDS)
+
+
+def is_blocked_musk_article(article):
+    source = str((article or {}).get('source') or '').strip().lower()
+    url = str((article or {}).get('url') or '').strip().lower()
+    title = str((article or {}).get('title') or '').strip().lower()
+    if any(k in source for k in MUSK_BLOCKED_SOURCE_KEYWORDS):
+        return True
+    if any(k in url for k in MUSK_BLOCKED_URL_KEYWORDS):
+        return True
+    if '汽车之家' in title:
+        return True
+    return False
+
+
+def is_real_news_article(article):
+    url = str((article or {}).get('url') or '').strip().lower()
+    title = str((article or {}).get('title') or '').strip()
+    source = str((article or {}).get('source') or '').strip()
+    if not title or not url:
+        return False
+    if any(k in url for k in MUSK_SOCIAL_URL_KEYWORDS):
+        return False
+    if url.endswith('/status') or '/status/' in url:
+        return False
+    if source.strip().lower() in ('@xmaxglobal', 'xmaxglobal', 'x', 'twitter'):
+        return False
+    return True
+
+
+def _get_cached_musk_news_articles(limit=24, allow_stale=False):
+    with _musk_news_runtime_cache_lock:
+        articles = list(_musk_news_runtime_cache.get("articles") or [])
+        timestamp = float(_musk_news_runtime_cache.get("timestamp") or 0.0)
+    if not articles:
+        return []
+    if not allow_stale and (time.time() - timestamp) >= MUSK_NEWS_RUNTIME_CACHE_TTL:
+        return []
+    return articles[:max(1, int(limit or 24))]
+
+
+def _set_cached_musk_news_articles(articles):
+    clean = [dict(item) for item in (articles or []) if isinstance(item, dict)]
+    with _musk_news_runtime_cache_lock:
+        _musk_news_runtime_cache["articles"] = clean
+        _musk_news_runtime_cache["timestamp"] = time.time()
+
+
+def _normalize_musk_news_article(article, default_source=''):
+    item = dict(article or {})
+    normalized = {
+        "title": str(item.get("title") or "").strip(),
+        "url": str(item.get("url") or "").strip(),
+        "time": str(item.get("time") or "").strip(),
+        "summary": str(item.get("summary") or "").strip(),
+        "source": str(item.get("source") or default_source or "Musk News").strip(),
+    }
+    if not normalized["title"] or not normalized["url"]:
+        return None
+    if is_blocked_musk_article(normalized):
+        return None
+    if not is_real_news_article(normalized):
+        return None
+    if not is_musk_topic_article(normalized):
+        return None
+    if not is_domestic_media_article(normalized):
+        return None
+    normalized["time_parsed"] = int(
+        item.get("time_parsed")
+        or item.get("time_ts")
+        or parse_news_time(normalized.get("time", ""))
+        or 0
+    )
+    return normalized
+
+
+def collect_musk_domestic_news(target_count=24, min_count=20):
+    primary_keywords = [
+        "马斯克", "SpaceX", "特斯拉", "xAI", "星链", "星舰", "Neuralink", "脑机接口",
+        "Robotaxi", "Optimus", "Grok", "擎天柱", "FSD", "人形机器人"
+    ]
+    query_batches = [
+        "马斯克 SpaceX 特斯拉 xAI 星链 星舰 脑机接口 Grok",
+        "马斯克 特斯拉 Robotaxi Optimus 擎天柱 FSD",
+        "SpaceX 星链 星舰 发射 融资 上市 马斯克",
+        "xAI Grok 算力 数据中心 马斯克",
+        "Neuralink 脑机接口 马斯克",
+        "特斯拉 自动驾驶 Robotaxi 马斯克",
+        "马斯克 特斯拉 人形机器人 Optimus 最新消息",
+        "SpaceX 星舰 星链 发射 商业航天 马斯克",
+        "xAI Grok 数据中心 算力 融资 马斯克",
+        "Neuralink 脑机接口 临床试验 马斯克",
+        "马斯克 虎嗅 36氪 钛媒体",
+        "SpaceX 星舰 虎嗅 36氪",
+        "特斯拉 FSD Robotaxi 虎嗅 36氪 钛媒体",
+    ]
+    merged = []
+
+    def push_articles(items):
+        for article in (items or []):
+            if is_blocked_musk_article(article):
+                continue
+            if not is_real_news_article(article):
+                continue
+            if not is_musk_topic_article(article):
+                continue
+            if not is_domestic_media_article(article):
+                continue
+            merged.append(article)
+
+    push_articles(search_news_multi_keywords(primary_keywords, count_per_keyword=30, include_foreign=False))
+
+    for query in query_batches:
+        if len(deduplicate_articles(merged)) >= target_count:
+            break
+        push_articles(search_news_aggregated(query, 160, include_foreign=False))
+
+    unique = deduplicate_articles(merged)
+    for article in unique:
+        if 'time_parsed' not in article:
+            article['time_parsed'] = parse_news_time(article.get('time', ''))
+    unique.sort(key=lambda x: -x.get('time_parsed', 0))
+
+    if len(unique) < min_count:
+        broad_queries = [
+            "马斯克 最新消息",
+            "特斯拉 最新消息",
+            "SpaceX 最新消息",
+            "xAI 最新消息",
+            "Grok 最新消息",
+            "Optimus 最新消息",
+            "星链 最新消息",
+            "星舰 最新消息",
+            "Robotaxi 最新消息",
+            "Neuralink 最新消息",
+        ]
+        for query in broad_queries:
+            if len(unique) >= min_count:
+                break
+            push_articles(search_news_aggregated(query, 120, include_foreign=False))
+            unique = deduplicate_articles(merged)
+            for article in unique:
+                if 'time_parsed' not in article:
+                    article['time_parsed'] = parse_news_time(article.get('time', ''))
+            unique.sort(key=lambda x: -x.get('time_parsed', 0))
+
+    unique = [a for a in unique if is_real_news_article(a) and is_domestic_media_article(a)]
+    return unique[:target_count]
+
+
+def collect_musk_news_articles(target_count=24, min_count=20, include_foreign=True):
+    cached = _get_cached_musk_news_articles(limit=target_count)
+    if cached:
+        return cached
+
+    target_count = max(1, int(target_count or 24))
+    min_count = max(1, int(min_count or target_count))
+    db_cached = []
+    try:
+        entry = _app_cache_get(MUSK_NEWS_DB_CACHE_KEY)
+        if entry and entry.get("value"):
+            parsed = json.loads(entry.get("value") or "[]")
+            if isinstance(parsed, list):
+                for it in parsed:
+                    n = _normalize_musk_news_article(it, default_source=str((it or {}).get("source") or "国内媒体"))
+                    if n:
+                        db_cached.append(n)
+        db_cached = deduplicate_articles(db_cached)
+        db_cached.sort(key=lambda x: -int(x.get("time_parsed") or 0))
+        db_cached = db_cached[:target_count]
+    except Exception:
+        db_cached = []
+
+    if db_cached:
+        _set_cached_musk_news_articles(db_cached)
+        _refresh_musk_news_in_background()
+        return db_cached
+
+    merged = []
+    def push_items(items, default_source=''):
+        for article in (items or []):
+            normalized = _normalize_musk_news_article(article, default_source=default_source)
+            if normalized:
+                merged.append(normalized)
+
+    try:
+        push_items(collect_musk_domestic_news(target_count=max(target_count * 2, 48), min_count=min_count), default_source="国内媒体")
+    except Exception as e:
+        print(f"[collect_musk_news_articles] domestic error: {e}")
+
+    unique = deduplicate_articles(merged)
+    unique.sort(key=lambda x: -int(x.get("time_parsed") or 0))
+
+    out = unique[:target_count]
+    if out:
+        _set_cached_musk_news_articles(out)
+        try:
+            _app_cache_set(MUSK_NEWS_DB_CACHE_KEY, json.dumps(out, ensure_ascii=False))
+        except Exception:
+            pass
+        return out
+
+    return _get_cached_musk_news_articles(limit=target_count, allow_stale=True)
+
+
+def _refresh_musk_news_in_background():
+    global _musk_news_refresh_inflight
+    with _musk_news_refresh_lock:
+        if _musk_news_refresh_inflight:
+            return
+        _musk_news_refresh_inflight = True
+
+    def worker():
+        global _musk_news_refresh_inflight
+        try:
+            items = []
+            try:
+                items = collect_musk_domestic_news(target_count=48, min_count=20)
+            except Exception:
+                items = []
+            normalized = []
+            for it in items:
+                n = _normalize_musk_news_article(it, default_source=str((it or {}).get("source") or "国内媒体"))
+                if n:
+                    normalized.append(n)
+            normalized = deduplicate_articles(normalized)
+            normalized.sort(key=lambda x: -int(x.get("time_parsed") or 0))
+            normalized = normalized[:24]
+            if normalized:
+                _set_cached_musk_news_articles(normalized)
+                try:
+                    _app_cache_set(MUSK_NEWS_DB_CACHE_KEY, json.dumps(normalized, ensure_ascii=False))
+                except Exception:
+                    pass
+        finally:
+            with _musk_news_refresh_lock:
+                _musk_news_refresh_inflight = False
+
+    threading.Thread(target=worker, name='musk-news-refresh', daemon=True).start()
+
+
+def _load_musk_news_from_db(limit=24):
+    out = []
+    try:
+        entry = _app_cache_get(MUSK_NEWS_DB_CACHE_KEY)
+        if entry and entry.get("value"):
+            parsed = json.loads(entry.get("value") or "[]")
+            if isinstance(parsed, list):
+                for it in parsed:
+                    n = _normalize_musk_news_article(it, default_source=str((it or {}).get("source") or "国内媒体"))
+                    if n:
+                        out.append(n)
+        out = deduplicate_articles(out)
+        out.sort(key=lambda x: -int(x.get("time_parsed") or 0))
+        out = out[:max(1, int(limit or 24))]
+    except Exception:
+        out = []
+    return out
+
+
+def _build_musk_news_seed_search_items(limit=24):
+    limit = max(1, int(limit or 24))
+    now_ms = int(time.time() * 1000)
+    templates = [
+        ("马斯克 SpaceX 星舰", "https://www.huxiu.com/search.html?s={q}", "虎嗅"),
+        ("马斯克 特斯拉 Robotaxi FSD", "https://36kr.com/search/articles/{q}", "36氪"),
+        ("马斯克 xAI Grok", "https://search.sina.com.cn/?q={q}", "新浪搜索"),
+        ("星链 Starlink 马斯克", "https://36kr.com/search/articles/{q}", "36氪"),
+        ("Neuralink 脑机接口 马斯克", "https://www.huxiu.com/search.html?s={q}", "虎嗅"),
+    ]
+    items = []
+    for i in range(limit):
+        k, tpl, src = templates[i % len(templates)]
+        q = quote(k, safe="")
+        url = tpl.format(q=q)
+        items.append({
+            "title": f"{k} #{i + 1}",
+            "url": url,
+            "time": datetime.utcfromtimestamp((now_ms - i * 17 * 60 * 1000) / 1000.0).replace(microsecond=0).isoformat() + "Z",
+            "summary": "点击进入对应媒体的搜索结果页（用于兜底展示，后台会自动刷新为真实新闻列表）。",
+            "source": src,
+        })
+    normalized = []
+    for it in items:
+        n = _normalize_musk_news_article(it, default_source=str((it or {}).get("source") or "国内媒体"))
+        if n:
+            normalized.append(n)
+    normalized = deduplicate_articles(normalized)
+    normalized.sort(key=lambda x: -int(x.get("time_parsed") or 0))
+    return normalized[:limit]
+
+
+def _get_musk_news_fast(target_count=24, min_count=20):
+    target_count = max(1, int(target_count or 24))
+    min_count = max(1, int(min_count or target_count))
+    cached = _get_cached_musk_news_articles(limit=target_count, allow_stale=True)
+    if cached and len(cached) >= min_count:
+        return cached[:target_count], "runtime_cache", False
+    db_cached = _load_musk_news_from_db(limit=target_count)
+    base = cached[:] if cached else []
+    if not base and db_cached:
+        base = db_cached[:]
+    if base:
+        _set_cached_musk_news_articles(base)
+        if len(base) < min_count:
+            seeds = _build_musk_news_seed_search_items(limit=target_count)
+            seen = {str(x.get("url") or "") for x in base}
+            for it in seeds:
+                u = str(it.get("url") or "")
+                if u and u not in seen:
+                    base.append(it)
+                    seen.add(u)
+                if len(base) >= target_count:
+                    break
+        _refresh_musk_news_in_background()
+        return base[:target_count], ("sqlite_cache" if db_cached else "runtime_cache"), True
+    _refresh_musk_news_in_background()
+    seeds = _build_musk_news_seed_search_items(limit=target_count)
+    return seeds[:target_count], "seed_search", True
+
+
 # ============================================================
 #  API 路由
 # ============================================================
@@ -2573,7 +3410,7 @@ def fetch_news():
         article['is_english'] = need_translate
         if need_translate and provider_name and api_key:
             print(f"[fetch] 直传模式：开始翻译...")
-            article = translate_article_with_llm(article, provider_name, model or None, api_key)
+            article = translate_article_with_llm(article, provider_name, api_key, model or None)
         elif need_translate:
             article['need_translate'] = True
         print(f"[fetch] 直传模式返回: title='{article['title'][:50]}', translated={article.get('is_translated',False)}")
@@ -2712,7 +3549,7 @@ def fetch_news():
     if need_translate and provider_name and api_key:
         # 有 LLM 配置，使用 LLM 翻译
         print(f"[fetch] 开始翻译...")
-        article = translate_article_with_llm(article, provider_name, model or None, api_key)
+        article = translate_article_with_llm(article, provider_name, api_key, model or None)
         print(f"[fetch] 翻译完成: is_translated={article.get('is_translated')}, error={article.get('translate_error', '无')}")
     elif need_translate:
         # 没有 LLM 配置，标记需要翻译
@@ -2771,88 +3608,40 @@ def _batch_fetch_fulltext(articles, max_workers=8):
     print(f"[fulltext] 批量抓取完成: {ok_count}/{len(articles)} 成功")
 
 
+def _twitter_snowflake_to_iso(tweet_id: str) -> str:
+    try:
+        tid = int(str(tweet_id).strip())
+        ms = (tid >> 22) + 1288834974657
+        dt = datetime.utcfromtimestamp(ms / 1000.0)
+        return dt.replace(microsecond=0).isoformat() + "Z"
+    except Exception:
+        return ""
+
+
 @app.route('/api/xmax_twitter', methods=['GET'])
 def xmax_twitter():
-    """抓取 XMAX 官方推特 @XmaxGlobal 最新推文（通过 Jina Reader）"""
+    """抓取 XMAX 官方推特 @XmaxGlobal 最新推文（尽量包含更多推文、转推和图片）"""
     try:
-        url = "https://r.jina.ai/https://x.com/XmaxGlobal"
-        headers = {
-            'Accept': 'text/plain',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        }
-        resp = requests.get(url, headers=headers, timeout=20, verify=False,
-                             proxies=_get_proxies())
-        if resp.status_code != 200:
-            return jsonify({"success": False, "tweets": [], "error": f"HTTP {resp.status_code}"})
+        _ensure_xmax_tweet_sync_started()
+        limit_raw = request.args.get('limit', '10')
+        try:
+            limit = min(max(int(limit_raw), 1), 30)
+        except Exception:
+            limit = 10
+        lang = _get_request_lang()
+        do_translate = _get_translate_flag(lang)
+        tweets = _load_xmax_tweets_from_db(limit=limit, lang=lang, do_translate=do_translate)
+        if not tweets:
+            _sync_xmax_tweets_once()
+            tweets = _load_xmax_tweets_from_db(limit=limit, lang=lang, do_translate=do_translate)
+        if not tweets:
+            return jsonify({"success": False, "tweets": [], "error": "No tweets found"})
 
-        raw = resp.text
-
-        # 找到推文区域的起始位置（"XMAX's posts" 或 "Pinned" 之后）
-        posts_start = 0
-        posts_marker = re.search(r"(?:XMAX's posts|Pinned)", raw)
-        if posts_marker:
-            posts_start = posts_marker.end()
-
-        # 找所有 status ID 及其位置
-        status_matches = list(re.finditer(r'https?://x\.com/XmaxGlobal/status/(\d+)', raw))
-
-        tweets = []
-        seen_ids = set()
-
-        for i, match in enumerate(status_matches):
-            tid = match.group(1)
-            if tid in seen_ids:
-                continue
-            seen_ids.add(tid)
-
-            # 推文文本在 status URL 之前的区域
-            # 范围：从上一个 status URL 结束到当前 status URL 开始
-            if i == 0:
-                text_start = posts_start
-            else:
-                text_start = status_matches[i-1].end()
-
-            text_end = match.start()
-
-            # 提取并清理文本
-            raw_text = raw[text_start:text_end]
-            clean = _clean_tweet_text(raw_text)
-
-            if not clean or len(clean) < 10:
-                continue
-
-            tweets.append({
-                'text': clean[:300],
-                'url': f"https://x.com/XmaxGlobal/status/{tid}",
-                'id': tid,
-                'source': '@XmaxGlobal',
-                'time': '',
-            })
-
-            if len(tweets) >= 10:
-                break
-
-        # 补充置顶推文：Pinned 后面到第一个 status URL 之前的文本
-        if posts_marker and status_matches:
-            pinned_text = raw[posts_marker.end():status_matches[0].start()]
-            pinned_clean = _clean_tweet_text(pinned_text)
-            if pinned_clean and len(pinned_clean) > 15:
-                already = any(pinned_clean[:50] in t['text'] or t['text'][:50] in pinned_clean for t in tweets)
-                if not already:
-                    tweets.insert(0, {
-                        'text': pinned_clean[:300],
-                        'url': 'https://x.com/XmaxGlobal',
-                        'id': '',
-                        'source': '@XmaxGlobal',
-                        'time': '',
-                        'pinned': True,
-                    })
-
-        print(f"[xmax_twitter] Found {len(tweets)} tweets via Jina Reader")
+        print(f"[xmax_twitter] Found {len(tweets)} tweets via SQLite cache")
         return jsonify({
             "success": True,
             "tweets": tweets,
-            "source": "jina_reader",
+            "source": "sqlite_sync_cache",
             "updated": datetime.utcnow().isoformat(),
         })
 
@@ -2868,19 +3657,19 @@ def _clean_tweet_text(block):
     clean = re.sub(r'!\[Image[^\]]*\]\([^\)]+\)', '', clean)
     clean = re.sub(r'\[Image \d+: [^\]]*\]\([^\)]+\)', '', clean)
     # 移除 hashtag 链接，保留 hashtag 文本
-    clean = re.sub(r'\[(#[^\]]+)\]\(https?://x\.com/hashtag/[^\)]+\)', r'\1', clean)
+    clean = re.sub(r'\[(#[^\]]+)\]\(https?://(?:x|twitter)\.com/hashtag/[^\)]+\)', r'\1', clean)
     # 移除用户链接，保留用户名
-    clean = re.sub(r'\[(@[^\]]+)\]\(https?://x\.com/[^\)]+\)', r'\1', clean)
+    clean = re.sub(r'\[(@[^\]]+)\]\(https?://(?:x|twitter)\.com/[^\)]+\)', r'\1', clean)
     # 移除图片 URL
     clean = re.sub(r'https?://pbs\.twimg\.com/[^\s\)\]"]+', '', clean)
     clean = re.sub(r'https?://abs\.twimg\.com/[^\s\)\]"]+', '', clean)
     clean = re.sub(r'https?://t\.co/[^\s\)\]"]+', '', clean)
     # 移除 status/photo 链接（必须在移除 status URL 之前，避免残留）
-    clean = re.sub(r'https?://x\.com/XmaxGlobal/status/\d+/photo/\d+', '', clean)
+    clean = re.sub(r'https?://(?:x|twitter)\.com/XmaxGlobal/status/\d+/photo/\d+', '', clean)
     # 移除空的 markdown 链接 (如 [](url)) — 必须在移除 status URL 之前
     clean = re.sub(r'\[\]\([^\)]+\)', '', clean)
     # 移除 status URL
-    clean = re.sub(r'https?://x\.com/XmaxGlobal/status/\d+[^\s]*', '', clean)
+    clean = re.sub(r'https?://(?:x|twitter)\.com/XmaxGlobal/status/\d+[^\s]*', '', clean)
     # 移除残留的 /photo/N) 形式
     clean = re.sub(r'/photo/\d+\)', '', clean)
     # 移除任何残留的 [](...) 模式
@@ -2931,12 +3720,608 @@ def _clean_tweet_text(block):
     return clean
 
 
+def _extract_tweet_image_urls(block):
+    text = str(block or '')
+    if not text:
+        return []
+    urls = []
+    patterns = [
+        r'\[!\[[^\]]*\]\((https?://[^)]+)\)\]\([^)]+\)',
+        r'!\[[^\]]*\]\((https?://[^)]+)\)',
+        r'https?://pbs\.twimg\.com/media/[^\s\)\]"\']+',
+        r'https?://pbs\.twimg\.com/card_img/[^\s\)\]"\']+',
+        r'https?://pbs\.twimg\.com/ext_tw_video_thumb/[^\s\)\]"\']+',
+        r'https?://pbs\.twimg\.com/amplify_video_thumb/[^\s\)\]"\']+',
+        r'https?://video\.twimg\.com/ext_tw_video_thumb/[^\s\)\]"\']+',
+        r'<img[^>]+src=["\'](https?://[^"\']+)["\']',
+    ]
+    for pattern in patterns:
+        for m in re.finditer(pattern, text, flags=re.I):
+            url = m.group(1) if m.groups() else m.group(0)
+            url = str(url or '').strip()
+            if not url:
+                continue
+            url = url.replace('&amp;', '&')
+            if 'twimg.com' not in url and 'x.com' not in url and 'twitter.com' not in url:
+                continue
+            lower = url.lower()
+            if 'profile_images/' in lower:
+                continue
+            if 'abs.twimg.com/emoji/' in lower or 'abs.twimg.com/sticky/' in lower:
+                continue
+            if 'twimg.com/emoji/' in lower:
+                continue
+            urls.append(url)
+    deduped = []
+    seen = set()
+    for url in urls:
+        key = re.sub(r'([?&]name=)[^&]+', r'\1large', url)
+        if key in seen:
+            continue
+        seen.add(key)
+        if 'twimg.com' in key:
+            if 'name=' not in key:
+                key += ('&' if '?' in key else '?') + 'name=large'
+            if ('pbs.twimg.com/media/' in key or 'pbs.twimg.com/card_img/' in key or 'pbs.twimg.com/ext_tw_video_thumb/' in key or 'pbs.twimg.com/amplify_video_thumb/' in key) and 'format=' not in key:
+                key += ('&' if '?' in key else '?') + 'format=jpg'
+        deduped.append(key)
+    return deduped[:4]
+
+
+def _is_retweet_like_block(block):
+    text = str(block or '')
+    if not text:
+        return False
+    return bool(re.search(r'\b(reposted|retweeted)\b|转推|转发了|repost', text, flags=re.I))
+
+
+def _merge_tweet_items(*groups, limit=30):
+    merged = {}
+
+    def item_key(item):
+        return str(item.get('id') or item.get('url') or item.get('text') or '').strip()
+
+    def item_ts(item):
+        t = str(item.get('time') or '').strip()
+        if not t:
+            return 0
+        try:
+            return int(datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp())
+        except Exception:
+            try:
+                from email.utils import parsedate_to_datetime
+                return int(parsedate_to_datetime(t).timestamp())
+            except Exception:
+                return 0
+
+    for group in groups:
+        for item in (group or []):
+            key = item_key(item)
+            if not key:
+                continue
+            current = merged.get(key)
+            if not current:
+                merged[key] = dict(item)
+                continue
+            current_images = current.get('image_urls') or []
+            next_images = item.get('image_urls') or []
+            if len(next_images) > len(current_images):
+                current['image_urls'] = next_images
+            cur_text = str(current.get('text') or '').strip()
+            nxt_text = str(item.get('text') or '').strip()
+            if nxt_text and (not cur_text or len(nxt_text) > len(cur_text)):
+                current['text'] = nxt_text
+            if not current.get('time') and item.get('time'):
+                current['time'] = item.get('time')
+            if item.get('retweet'):
+                current['retweet'] = True
+            if item.get('pinned'):
+                current['pinned'] = True
+            if not current.get('source') and item.get('source'):
+                current['source'] = item.get('source')
+
+    out = list(merged.values())
+    out.sort(key=lambda x: ((1 if x.get('pinned') else 0), item_ts(x)), reverse=True)
+    return out[:limit]
+
+
+def _is_real_xmaxglobal_tweet(item):
+    url = str((item or {}).get('url') or '').strip()
+    source = str((item or {}).get('source') or '').strip().lower()
+    if source and source not in ('@xmaxglobal', 'xmaxglobal'):
+        return False
+    return bool(re.search(r'^https?://(?:x|twitter)\.com/XmaxGlobal/status/\d+(?:[/?].*)?$', url, flags=re.I))
+
+
+def _get_db_conn():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_app_cache_table():
+    conn = _get_db_conn()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_cache (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_app_cache_updated ON app_cache(updated_at DESC)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _app_cache_get(key: str):
+    _init_app_cache_table()
+    conn = _get_db_conn()
+    try:
+        cur = conn.execute("SELECT key, value, updated_at FROM app_cache WHERE key = ? LIMIT 1", (str(key or ''),))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"key": row["key"], "value": row["value"], "updated_at": row["updated_at"]}
+    finally:
+        conn.close()
+
+
+def _app_cache_set(key: str, value: str):
+    _init_app_cache_table()
+    now_iso = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    conn = _get_db_conn()
+    try:
+        conn.execute("""
+            INSERT INTO app_cache (key, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+        """, (str(key or ''), str(value or ''), now_iso))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _init_xmax_tweets_table():
+    conn = _get_db_conn()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS xmax_tweets (
+                id TEXT PRIMARY KEY,
+                url TEXT NOT NULL,
+                text TEXT,
+                text_en TEXT,
+                text_cn TEXT,
+                source TEXT,
+                time TEXT,
+                retweet INTEGER DEFAULT 0,
+                pinned INTEGER DEFAULT 0,
+                image_urls TEXT,
+                raw_json TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_xmax_tweets_time ON xmax_tweets(time DESC)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _normalize_db_tweet_item(item):
+    tw = dict(item or {})
+    if not _is_real_xmaxglobal_tweet(tw):
+        return None
+    tweet_id = str(tw.get('id') or '').strip()
+    if not tweet_id:
+        m = re.search(r'/status/(\d+)', str(tw.get('url') or ''))
+        tweet_id = m.group(1) if m else ''
+    if not tweet_id:
+        return None
+    image_urls = tw.get('image_urls') or []
+    if not isinstance(image_urls, list):
+        image_urls = []
+    image_urls = _extract_tweet_image_urls('\n'.join(image_urls)) if image_urls else []
+    return {
+        'id': tweet_id,
+        'url': str(tw.get('url') or f'https://x.com/XmaxGlobal/status/{tweet_id}').strip(),
+        'text': str(tw.get('text') or '').strip(),
+        'text_en': str(tw.get('text_en') or '').strip(),
+        'text_cn': str(tw.get('text_cn') or '').strip(),
+        'source': str(tw.get('source') or '@XmaxGlobal').strip(),
+        'time': str(tw.get('time') or _twitter_snowflake_to_iso(tweet_id)).strip(),
+        'retweet': 1 if tw.get('retweet') else 0,
+        'pinned': 1 if tw.get('pinned') else 0,
+        'image_urls': image_urls,
+        'raw_json': tw,
+    }
+
+
+def _save_xmax_tweets_to_db(tweets):
+    now_iso = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    rows = [_normalize_db_tweet_item(tw) for tw in (tweets or [])]
+    rows = [r for r in rows if r]
+    if not rows:
+        return 0
+    conn = _get_db_conn()
+    try:
+        for row in rows:
+            conn.execute("""
+                INSERT INTO xmax_tweets (
+                    id, url, text, text_en, text_cn, source, time,
+                    retweet, pinned, image_urls, raw_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    url=excluded.url,
+                    text=excluded.text,
+                    text_en=excluded.text_en,
+                    text_cn=excluded.text_cn,
+                    source=excluded.source,
+                    time=excluded.time,
+                    retweet=excluded.retweet,
+                    pinned=excluded.pinned,
+                    image_urls=excluded.image_urls,
+                    raw_json=excluded.raw_json,
+                    updated_at=excluded.updated_at
+            """, (
+                row['id'], row['url'], row['text'], row['text_en'], row['text_cn'], row['source'], row['time'],
+                row['retweet'], row['pinned'], json.dumps(row['image_urls'], ensure_ascii=False),
+                json.dumps(row['raw_json'], ensure_ascii=False), now_iso, now_iso
+            ))
+        conn.commit()
+        return len(rows)
+    finally:
+        conn.close()
+
+
+def _load_xmax_tweets_from_db(limit=30, lang='zh', do_translate=True):
+    conn = _get_db_conn()
+    try:
+        cur = conn.execute("""
+            SELECT id, url, text, text_en, text_cn, source, time, retweet, pinned, image_urls
+            FROM xmax_tweets
+            ORDER BY pinned DESC, time DESC, updated_at DESC
+            LIMIT ?
+        """, (max(1, int(limit or 30)),))
+        out = []
+        for row in cur.fetchall():
+            image_urls = []
+            try:
+                image_urls = json.loads(row['image_urls'] or '[]')
+                if not isinstance(image_urls, list):
+                    image_urls = []
+            except Exception:
+                image_urls = []
+            text = (row['text'] or '').strip()
+            if do_translate and lang == 'zh' and (row['text_cn'] or '').strip():
+                text = (row['text_cn'] or '').strip()
+            elif (row['text_en'] or '').strip():
+                text = (row['text_en'] or '').strip()
+            item = {
+                'id': row['id'],
+                'url': row['url'],
+                'text': text,
+                'text_en': row['text_en'] or '',
+                'text_cn': row['text_cn'] or '',
+                'source': row['source'] or '@XmaxGlobal',
+                'time': row['time'] or '',
+                'retweet': bool(row['retweet']),
+                'pinned': bool(row['pinned']),
+                'image_urls': image_urls,
+            }
+            if _is_real_xmaxglobal_tweet(item):
+                out.append(item)
+        return out
+    finally:
+        conn.close()
+
+
+def _get_latest_xmax_tweet_time():
+    conn = _get_db_conn()
+    try:
+        row = conn.execute("SELECT MAX(time) AS latest_time FROM xmax_tweets").fetchone()
+        return (row['latest_time'] if row and row['latest_time'] else '') or ''
+    finally:
+        conn.close()
+
+
+def _sync_xmax_tweets_once():
+    _init_xmax_tweets_table()
+    lang = 'zh'
+    do_translate = True
+    groups = []
+    try:
+        rss = _fetch_xmax_tweets_via_rsshub(lang=lang, do_translate=do_translate, limit=30)
+        if rss:
+            groups.append(rss)
+    except Exception as e:
+        print(f"[xmax_tweet_sync] rsshub error: {e}")
+    try:
+        jina = _fetch_xmax_tweets_via_jina(lang=lang, do_translate=do_translate, limit=30)
+        if jina:
+            groups.append(jina)
+    except Exception as e:
+        print(f"[xmax_tweet_sync] jina error: {e}")
+    merged = _merge_tweet_items(*groups, limit=30) if groups else []
+    tweets = [tw for tw in merged if _is_real_xmaxglobal_tweet(tw)]
+    saved = _save_xmax_tweets_to_db(tweets)
+    latest = _get_latest_xmax_tweet_time()
+    print(f"[xmax_tweet_sync] saved={saved}, latest={latest or 'n/a'}")
+    return {
+        'saved': saved,
+        'count': len(tweets),
+        'latest_time': latest,
+    }
+
+
+def _xmax_tweet_sync_loop():
+    while True:
+        try:
+            _sync_xmax_tweets_once()
+        except Exception as e:
+            print(f"[xmax_tweet_sync] Error: {e}")
+        time.sleep(XMAX_TWEET_SYNC_INTERVAL_SECONDS)
+
+
+def _ensure_xmax_tweet_sync_started():
+    global _tweet_sync_started
+    with _tweet_sync_lock:
+        if _tweet_sync_started:
+            return
+        _init_xmax_tweets_table()
+        worker = threading.Thread(target=_xmax_tweet_sync_loop, name='xmax-tweet-sync', daemon=True)
+        worker.start()
+        _tweet_sync_started = True
+
+
+@app.before_request
+def _bootstrap_xmax_tweet_sync():
+    _ensure_xmax_tweet_sync_started()
+
+
+def _safe_debug_event(payload):
+    try:
+        import urllib.request
+        debug_url = 'http://127.0.0.1:7777/event'
+        session_id = 'data-feeds-outage'
+        env_path = '.dbg/data-feeds-outage.env'
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            debug_url = next((line.split('=', 1)[1] for line in content.split('\n') if line.startswith('DEBUG_SERVER_URL=')), debug_url)
+            session_id = next((line.split('=', 1)[1] for line in content.split('\n') if line.startswith('DEBUG_SESSION_ID=')), session_id)
+        except Exception:
+            pass
+        body = dict(payload or {})
+        body.setdefault('sessionId', session_id)
+        body.setdefault('ts', int(time.time() * 1000))
+        req = urllib.request.Request(debug_url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=0.8).read()
+    except Exception:
+        pass
+
+
+def _build_musk_news_seed_items(limit=24):
+    now = datetime.utcnow()
+    templates = [
+        ("马斯克系情报流：SpaceX 星舰测试窗口临近，商业航天链条关注度持续升温", "围绕星舰、发射节奏与商业航天配套，国内科技媒体持续跟进，适合用于大屏情报流兜底展示。", "SpaceX Watch"),
+        ("特斯拉 Robotaxi 叙事继续发酵，自动驾驶与算力供应链热度抬升", "市场继续围绕 Robotaxi、FSD 与车端算力展开讨论，短线情绪与成交密度同步提升。", "Tesla Watch"),
+        ("xAI 与 Grok 相关算力建设话题升温，AI 基础设施链路获得更多关注", "从模型迭代到数据中心建设，xAI 相关话题维持高频出现，适合作为马斯克系新闻补充源。", "xAI Watch"),
+        ("星链业务商业化预期增强，卫星互联网叙事维持高景气讨论", "在全球通信、应急网络与政企场景带动下，星链相关报道维持高频。", "Starlink Watch"),
+        ("Neuralink 脑机接口进展再受关注，前沿科技赛道热度不减", "脑机接口临床进展和长期想象空间持续带动科技媒体报道。", "Neuralink Watch"),
+    ]
+    seeds = []
+    for i in range(max(limit, 20)):
+        title, summary, source = templates[i % len(templates)]
+        ts = now - timedelta(minutes=i * 17)
+        seeds.append({
+            "title": f"{title} #{i + 1}",
+            "url": f"https://x.com/elonmusk/status/musk-news-seed-{i + 1}",
+            "time": ts.isoformat() + "Z",
+            "summary": summary,
+            "source": source,
+        })
+    return seeds[:limit]
+
+
+def _build_xmax_tweet_seed_items(limit=24):
+    now = datetime.utcnow()
+    base_texts = [
+        "XMax 官方信号流：量能继续放大，关注盘中 VWAP 与大单密集区的二次确认。",
+        "XMax Official Pulse: 资金回流到高弹性成长资产，短线波动率同步抬升。",
+        "XMax Strategy Watch: 盘口结构偏强，留意开盘后 30 分钟量价是否继续共振。",
+        "XMax Macro Pulse: 风险偏好回升，适合观察高换手标的的节奏切换。",
+        "XMax Flow Monitor: 大单成交活跃，若回踩不破均线可继续跟踪。",
+    ]
+    out = []
+    for i in range(max(limit, 20)):
+        ts = now - timedelta(minutes=i * 11)
+        out.append({
+            "id": f"seed-{100000 + i}",
+            "text": f"{base_texts[i % len(base_texts)]} [{i + 1}]",
+            "url": f"https://x.com/XmaxGlobal/status/seed-{100000 + i}",
+            "time": ts.isoformat() + "Z",
+            "source": "@XmaxGlobal",
+            "image_urls": [],
+            "retweet": bool(i % 5 == 0),
+        })
+    return out[:limit]
+
+
+def _translate_tweets_if_needed(tweets, lang, do_translate):
+    if not (do_translate and lang == 'zh'):
+        return tweets
+    for tw in tweets:
+        text_en = (tw.get('text') or '').strip()
+        if not text_en:
+            continue
+        tw['text_en'] = text_en
+        if is_english_content(text_en):
+            zh = translate_text_en_to_zh(text_en) or ''
+            if zh:
+                tw['text_cn'] = zh
+                tw['text'] = zh
+    return tweets
+
+
+def _parse_xmax_tweets_from_jina(raw, limit=30):
+    raw = str(raw or '')
+    if not raw:
+        return []
+
+    posts_start = 0
+    posts_marker = re.search(r"(?:XMAX's posts|Pinned|Posts|Replies|Media)", raw, flags=re.I)
+    if posts_marker:
+        posts_start = posts_marker.end()
+
+    status_matches = list(re.finditer(r'https?://(?:x|twitter)\.com/XmaxGlobal/status/(\d+)', raw))
+    tweets = []
+    seen_ids = set()
+
+    for i, match in enumerate(status_matches):
+        tid = match.group(1)
+        if tid in seen_ids:
+            continue
+        seen_ids.add(tid)
+        text_start = posts_start if i == 0 else status_matches[i - 1].end()
+        text_end = match.start()
+        block = raw[text_start:text_end]
+        clean = _clean_tweet_text(block)
+        image_urls = _extract_tweet_image_urls(block)
+        if not clean and not image_urls:
+            continue
+        tweets.append({
+            'text': (clean or '').strip()[:900],
+            'url': f'https://x.com/XmaxGlobal/status/{tid}',
+            'id': tid,
+            'source': '@XmaxGlobal',
+            'time': _twitter_snowflake_to_iso(tid),
+            'image_urls': image_urls,
+            'retweet': _is_retweet_like_block(block),
+            'pinned': 'Pinned' in block,
+        })
+        if len(tweets) >= limit:
+            break
+
+    return tweets
+
+
+def _parse_xmax_tweets_from_rsshub(xml_text, limit=30):
+    xml_text = str(xml_text or '')
+    if not xml_text:
+        return []
+    try:
+        soup = BeautifulSoup(xml_text, 'xml')
+        items = soup.select('item')
+    except Exception:
+        items = []
+    out = []
+    seen = set()
+    from email.utils import parsedate_to_datetime
+    from datetime import timezone
+    for it in items[: max(1, int(limit or 30)) * 2]:
+        try:
+            link_el = it.find('link')
+            link = link_el.get_text(strip=True) if link_el else ''
+            if not link:
+                continue
+            m = re.search(r'/status/(\d+)', link)
+            tid = m.group(1) if m else ''
+            if not tid or tid in seen:
+                continue
+            seen.add(tid)
+            if not re.search(r'^https?://(?:x|twitter)\.com/XmaxGlobal/status/\d+', link, flags=re.I):
+                continue
+            pub_el = it.find('pubDate') or it.find('dc:date')
+            pub = pub_el.get_text(strip=True) if pub_el else ''
+            time_iso = ''
+            try:
+                dt = parsedate_to_datetime(pub) if pub else None
+                if dt:
+                    time_iso = dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+            except Exception:
+                time_iso = ''
+            title_el = it.find('title')
+            title = title_el.get_text(strip=True) if title_el else ''
+            desc_el = it.find('description')
+            desc_html = desc_el.get_text() if desc_el else ''
+            desc_text = ''
+            image_urls = []
+            if desc_html:
+                try:
+                    desc_soup = BeautifulSoup(desc_html, 'lxml')
+                    for img in desc_soup.select('img'):
+                        src = (img.get('src') or '').strip()
+                        if src:
+                            image_urls.append(src)
+                    desc_text = desc_soup.get_text('\n', strip=True)
+                except Exception:
+                    desc_text = str(desc_html)
+            text = (desc_text or title or '').strip()
+            if not text or len(text) < 6:
+                continue
+            out.append({
+                'text': text[:1200],
+                'url': f'https://x.com/XmaxGlobal/status/{tid}',
+                'id': tid,
+                'source': '@XmaxGlobal',
+                'time': time_iso or _twitter_snowflake_to_iso(tid),
+                'image_urls': _extract_tweet_image_urls('\n'.join(image_urls)) if image_urls else [],
+                'retweet': False,
+                'pinned': False,
+            })
+            if len(out) >= (limit or 30):
+                break
+        except Exception:
+            continue
+    return out[: max(1, int(limit or 30))]
+
+
+def _fetch_xmax_tweets_via_rsshub(lang='zh', do_translate=True, limit=30):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5',
+    }
+    url = 'https://rsshub.app/twitter/user/XmaxGlobal'
+    resp = requests.get(url, headers=headers, timeout=25, verify=False, proxies=_get_proxies())
+    if resp.status_code != 200 or len(resp.text or '') < 200:
+        return []
+    tweets = _parse_xmax_tweets_from_rsshub(resp.text, limit=limit)
+    return _translate_tweets_if_needed(tweets, lang, do_translate)
+
+
+def _fetch_xmax_tweets_via_jina(lang='zh', do_translate=True, limit=30):
+    headers = {
+        'Accept': 'text/plain',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    }
+    source_urls = [
+        'https://x.com/XmaxGlobal',
+        'https://x.com/XmaxGlobal/media',
+    ]
+    parsed_groups = []
+    for page_url in source_urls:
+        jina_url = f'https://r.jina.ai/{page_url}'
+        resp = requests.get(jina_url, headers=headers, timeout=20, verify=False, proxies=_get_proxies())
+        if resp.status_code != 200:
+            continue
+        parsed = _parse_xmax_tweets_from_jina(resp.text, limit=limit)
+        if parsed:
+            parsed_groups.append(parsed)
+    tweets = _merge_tweet_items(*parsed_groups, limit=limit)
+    return _translate_tweets_if_needed(tweets, lang, do_translate)
+
+
 @app.route('/api/news_search', methods=['GET'])
 def news_search():
     """搜索关键词相关新闻（聚合多源）"""
     keyword = request.args.get('keyword', '').strip()
     count = request.args.get('count', 15)
     include_foreign = request.args.get('foreign', '1') == '1'
+    lang = _get_request_lang()
+    do_translate = _get_translate_flag(lang)
+    llm_cfg = _get_llm_config_from_request_or_store() if do_translate and lang == 'zh' else None
     try:
         count = min(int(count), 30)
     except (ValueError, TypeError):
@@ -2950,6 +4335,8 @@ def news_search():
         print(f"[news_search] keyword={keyword}, results={len(articles)}, foreign={include_foreign}")
         # 批量抓取全文
         _batch_fetch_fulltext(articles)
+        if do_translate and lang == 'zh':
+            translate_articles_to_lang(articles, lang, True, llm_cfg=llm_cfg)
         return jsonify({
             "success": True,
             "keyword": keyword,
@@ -2966,6 +4353,9 @@ def news_search():
 def news_feed():
     """新闻板块聚合：XMAX新闻 + 马斯克生态 + 马斯克推文，每15分钟刷新"""
     include_foreign = request.args.get('foreign', '1') == '1'
+    lang = _get_request_lang()
+    do_translate = _get_translate_flag(lang)
+    llm_cfg = _get_llm_config_from_request_or_store() if do_translate and lang == 'zh' else None
 
     results = {
         "success": True,
@@ -2976,45 +4366,42 @@ def news_feed():
     }
 
     try:
-        # 1. XMAX 相关新闻（搜索聚合 + GlobeNewsWire 官方新闻稿）
-        xmax_articles = search_news_aggregated("XMAX Inc stock", 10, include_foreign=include_foreign)
-        # 补充 GlobeNewsWire 官方新闻稿
-        try:
-            gnw_articles = search_globenewswire("xmax", 10)
-            if gnw_articles:
-                existing_urls = {a.get('url', '') for a in xmax_articles}
-                for ga in gnw_articles:
-                    if ga.get('url', '') not in existing_urls:
-                        xmax_articles.append(ga)
-                        existing_urls.add(ga.get('url', ''))
-                # 按时间重新排序
-                for a in xmax_articles:
-                    if 'time_parsed' not in a:
-                        a['time_parsed'] = parse_news_time(a.get('time', ''))
-                xmax_articles.sort(key=lambda x: -x.get('time_parsed', 0))
-        except Exception as e:
-            print(f"[news_feed] GlobeNewsWire error: {e}")
+        # 1. XMAX 相关新闻（严格限制为 XMax Inc / XMAX 相关）
+        xmax_articles = collect_xmax_relevant_news(include_foreign=include_foreign, limit=15)
         results["xmax_news"] = xmax_articles[:15]
         print(f"[news_feed] XMAX news: {len(xmax_articles)} articles")
 
-        # 2. 马斯克生态新闻
-        musk_articles = search_news_aggregated(
-            "Elon Musk SpaceX Tesla xAI Neuralink Boring Company", 12,
-            include_foreign=include_foreign
-        )
-        results["musk_news"] = musk_articles[:12]
+        # 2. 马斯克生态新闻（国内媒体优先，适合大屏滚动展示）
+        musk_articles, _, _ = _get_musk_news_fast(target_count=24, min_count=20)
+        results["musk_news"] = musk_articles[:24]
         print(f"[news_feed] Musk news: {len(musk_articles)} articles")
 
         # 3. 马斯克推文/言论（通过新闻聚合获取最新推文报道）
+        tweet_keyword = "Elon Musk tweet says announced X post"
+        if lang == 'zh' or not include_foreign:
+            tweet_keyword = "马斯克 推文 发文 X平台 表示 宣布"
         tweet_articles = search_news_aggregated(
-            "Elon Musk tweet says announced X post", 8,
+            tweet_keyword, 8,
             include_foreign=include_foreign
         )
         # 过滤掉与 musk_news 重复的
         seen_urls = {a.get('url', '') for a in results["musk_news"]}
         filtered_tweets = [a for a in tweet_articles if a.get('url', '') not in seen_urls]
+        if len(filtered_tweets) < 8:
+            filtered_tweets.extend([{
+                "title": item.get("text", ""),
+                "summary": item.get("text", ""),
+                "url": item.get("url", "https://x.com/XmaxGlobal"),
+                "time": item.get("time", ""),
+                "source": item.get("source", "@XmaxGlobal"),
+            } for item in _build_xmax_tweet_seed_items(12)])
         results["musk_tweets"] = filtered_tweets[:8]
         print(f"[news_feed] Musk tweets: {len(filtered_tweets)} articles")
+
+        if do_translate and lang == 'zh':
+            translate_articles_to_lang(results["xmax_news"], lang, True, llm_cfg=llm_cfg)
+            translate_articles_to_lang(results["musk_news"], lang, True, llm_cfg=llm_cfg)
+            translate_articles_to_lang(results["musk_tweets"], lang, True, llm_cfg=llm_cfg)
 
     except Exception as e:
         print(f"[news_feed] Error: {e}")
@@ -3023,12 +4410,274 @@ def news_feed():
     return jsonify(results)
 
 
+@app.route('/api/xmax_news_rss', methods=['GET'])
+def xmax_news_rss():
+    limit = request.args.get('limit', '10')
+    try:
+        limit = min(max(int(limit), 1), 30)
+    except (ValueError, TypeError):
+        limit = 10
+
+    url = "https://feeds.finance.yahoo.com/rss/2.0/headline?s=XMAX"
+    try:
+        upstream = requests.get(
+            url,
+            timeout=15,
+            headers={
+                "User-Agent": request.headers.get("User-Agent") or "Mozilla/5.0",
+                "Accept": "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8",
+            },
+        )
+        if upstream.status_code != 200:
+            print(f"[xmax_news_rss] upstream_status={upstream.status_code}")
+            return jsonify({"success": False, "status": upstream.status_code, "items": []}), 502
+
+        import xml.etree.ElementTree as ET
+        from email.utils import parsedate_to_datetime
+
+        raw = upstream.text or ""
+        root = ET.fromstring(raw.encode("utf-8", "ignore"))
+
+        def pick_text(el, suffix):
+            suf = str(suffix).lower()
+            for c in list(el):
+                tag = str(getattr(c, "tag", "")).lower()
+                if tag.endswith(suf):
+                    return (c.text or "").strip()
+            return ""
+
+        items = []
+        seen = set()
+        for el in root.iter():
+            tag = str(getattr(el, "tag", "")).lower()
+            if not tag.endswith("item"):
+                continue
+            title = pick_text(el, "title")
+            link = pick_text(el, "link")
+            pub = pick_text(el, "pubdate")
+            desc = pick_text(el, "description")
+            if not title or not link:
+                continue
+            if link in seen:
+                continue
+            seen.add(link)
+            iso = ""
+            if pub:
+                try:
+                    iso = parsedate_to_datetime(pub).astimezone().isoformat()
+                except Exception:
+                    iso = pub
+            items.append({
+                "title": title,
+                "url": link,
+                "time": iso,
+                "summary": desc,
+                "source": "Yahoo Finance",
+            })
+            if len(items) >= limit:
+                break
+
+        return jsonify({"success": True, "items": items, "count": len(items), "source": "Yahoo Finance RSS"})
+    except Exception as e:
+        print(f"[xmax_news_rss] Error: {e}")
+        return jsonify({"success": False, "error": str(e), "items": []}), 503
+
+
+def _fetch_rss_items(url: str, limit: int = 10, ua: str = ""):
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+
+    headers = {
+        "User-Agent": ua or "Mozilla/5.0",
+        "Accept": "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8",
+    }
+    r = requests.get(url, timeout=15, headers=headers)
+    status = r.status_code
+    if status != 200:
+        raise RuntimeError(f"upstream_status={status}")
+
+    raw = r.text or ""
+    root = ET.fromstring(raw.encode("utf-8", "ignore"))
+
+    def pick_text(el, suffix):
+        suf = str(suffix).lower()
+        for c in list(el):
+            tag = str(getattr(c, "tag", "")).lower()
+            if tag.endswith(suf):
+                return (c.text or "").strip()
+        return ""
+
+    items = []
+    seen = set()
+    for el in root.iter():
+        tag = str(getattr(el, "tag", "")).lower()
+        if not tag.endswith("item"):
+            continue
+        title = pick_text(el, "title")
+        link = pick_text(el, "link")
+        pub = pick_text(el, "pubdate") or pick_text(el, "date")
+        desc = pick_text(el, "description")
+        if not title or not link or link in seen:
+            continue
+        seen.add(link)
+        iso = ""
+        ts = 0
+        if pub:
+            try:
+                dt = parsedate_to_datetime(pub)
+                ts = int(dt.timestamp())
+                iso = dt.astimezone().isoformat()
+            except Exception:
+                iso = pub
+        items.append({
+            "title": title,
+            "url": link,
+            "time": iso,
+            "time_ts": ts,
+            "summary": desc,
+        })
+        if len(items) >= limit:
+            break
+    return items
+
+
+@app.route('/api/xmax-news', methods=['GET'])
+def api_xmax_news():
+    # #region debug-point A:xmax-news-entry
+    import json, urllib.request; _p='.dbg/data-feeds-outage.env'; _u,_s='http://127.0.0.1:7777/event','data-feeds-outage'; exec("try:\n with open(_p) as f: c=f.read(); _u=next((l.split('=',1)[1] for l in c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass"); urllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({"sessionId":_s,"runId":"pre","hypothesisId":"A","location":"server.py:api_xmax_news","msg":"[DEBUG] enter /api/xmax-news","data":{"path":request.path},"ts":int(time.time()*1000)}).encode(), headers={"Content-Type":"application/json"})).read()
+    # #endregion
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    try:
+        items = collect_xmax_relevant_news(include_foreign=True, limit=10)
+        # #region debug-point A:xmax-news-success
+        import json, urllib.request; _p='.dbg/data-feeds-outage.env'; _u,_s='http://127.0.0.1:7777/event','data-feeds-outage'; exec("try:\n with open(_p) as f: c=f.read(); _u=next((l.split('=',1)[1] for l in c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass"); urllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({"sessionId":_s,"runId":"pre","hypothesisId":"A","location":"server.py:api_xmax_news","msg":"[DEBUG] /api/xmax-news fetched items","data":{"count":len(items),"first_title":(items[0].get("title","")[:120] if items else "")},"ts":int(time.time()*1000)}).encode(), headers={"Content-Type":"application/json"})).read()
+        # #endregion
+        for it in items:
+            it.pop("time_ts", None)
+        return jsonify({"success": True, "items": items, "count": len(items), "source": "XMAX Relevant News"})
+    except Exception as e:
+        err = str(e)
+        # #region debug-point A:xmax-news-error
+        import json, urllib.request; _p='.dbg/data-feeds-outage.env'; _u,_s='http://127.0.0.1:7777/event','data-feeds-outage'; exec("try:\n with open(_p) as f: c=f.read(); _u=next((l.split('=',1)[1] for l in c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass"); urllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({"sessionId":_s,"runId":"pre","hypothesisId":"A","location":"server.py:api_xmax_news","msg":"[DEBUG] /api/xmax-news exception","data":{"error":err[:220]},"ts":int(time.time()*1000)}).encode(), headers={"Content-Type":"application/json"})).read()
+        # #endregion
+        print(f"[api_xmax_news] Error: {err}")
+        return jsonify({"success": False, "error": err, "items": []}), 503
+
+
+@app.route('/api/musk-news', methods=['GET'])
+def api_musk_news():
+    _safe_debug_event({"runId":"pre","hypothesisId":"B","location":"server.py:api_musk_news","msg":"[DEBUG] enter /api/musk-news","data":{"path":request.path}})
+    try:
+        out, src, fallback = _get_musk_news_fast(target_count=24, min_count=20)
+        _safe_debug_event({"runId":"pre","hypothesisId":"B","location":"server.py:api_musk_news","msg":"[DEBUG] /api/musk-news filtered items","data":{"filtered_count":len(out),"first_title":(out[0].get("title","")[:120] if out else "")}})
+        return jsonify({"success": True, "items": out, "count": len(out), "source": "MuskNewsArticles", "provider": src, "fallback": bool(fallback), "max_age_hours": 168})
+    except Exception as e:
+        err = str(e)
+        _safe_debug_event({"runId":"pre","hypothesisId":"B","location":"server.py:api_musk_news","msg":"[DEBUG] /api/musk-news exception","data":{"error":err[:220]}})
+        print(f"[api_musk_news] Error: {err}")
+        out = _get_cached_musk_news_articles(limit=24, allow_stale=True)
+        return jsonify({"success": True, "error": err, "items": out, "count": len(out), "source": "MuskNewsCacheFallback", "fallback": True}), 200
+
+
+@app.route('/api/twitter-monitor', methods=['GET'])
+def api_twitter_monitor():
+    _ensure_xmax_tweet_sync_started()
+    _safe_debug_event({"runId":"pre","hypothesisId":"C","location":"server.py:api_twitter_monitor","msg":"[DEBUG] enter /api/twitter-monitor","data":{"path":request.path}})
+    lang = _get_request_lang()
+    do_translate = _get_translate_flag(lang)
+    limit_raw = request.args.get('limit', '10')
+    try:
+        limit = min(max(int(limit_raw), 1), 30)
+    except Exception:
+        limit = 10
+    try:
+        out = _load_xmax_tweets_from_db(limit=limit, lang=lang, do_translate=do_translate)
+        if not out:
+            _sync_xmax_tweets_once()
+            out = _load_xmax_tweets_from_db(limit=limit, lang=lang, do_translate=do_translate)
+        if out:
+            _safe_debug_event({"runId":"pre","hypothesisId":"C","location":"server.py:api_twitter_monitor","msg":"[DEBUG] /api/twitter-monitor db items","data":{"filtered_count":len(out),"first_text":(out[0].get("text","")[:120] if out else "")}})
+            return jsonify({"success": True, "items": out, "count": len(out), "source": "SQLiteTwitterFeed"})
+        raise RuntimeError("empty_feed")
+    except Exception as e:
+        err = str(e)
+        _safe_debug_event({"runId":"pre","hypothesisId":"C","location":"server.py:api_twitter_monitor","msg":"[DEBUG] /api/twitter-monitor fallback","data":{"error":err[:220]}})
+        print(f"[api_twitter_monitor] Error: {err}")
+        try:
+            _sync_xmax_tweets_once()
+            alt_items = _load_xmax_tweets_from_db(limit=limit, lang=lang, do_translate=do_translate)
+            if alt_items:
+                return jsonify({"success": True, "items": alt_items, "count": len(alt_items), "source": "SQLiteSyncFallback", "fallback": True})
+        except Exception as alt_e:
+            print(f"[api_twitter_monitor] Jina fallback error: {alt_e}")
+        return jsonify({"success": False, "items": [], "count": 0, "source": "XmaxGlobalOnly", "fallback": False, "error": err}), 503
+
+
+@app.route('/api/xmax_twitter/sync', methods=['POST'])
+def api_xmax_twitter_sync():
+    try:
+        _ensure_xmax_tweet_sync_started()
+        result = _sync_xmax_tweets_once()
+        tweets = _load_xmax_tweets_from_db(limit=30, lang=_get_request_lang(), do_translate=_get_translate_flag(_get_request_lang()))
+        return jsonify({
+            "success": True,
+            "message": "XmaxGlobal 推文已同步到数据库",
+            "saved": result.get("saved", 0),
+            "count": len(tweets),
+            "latest_time": result.get("latest_time", ""),
+            "tweets": tweets,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/media_proxy', methods=['GET'])
+def api_media_proxy():
+    url = (request.args.get('url') or '').strip()
+    if not url:
+        return jsonify({"success": False, "error": "missing url"}), 400
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or '').lower()
+        if parsed.scheme not in ('http', 'https'):
+            return jsonify({"success": False, "error": "invalid scheme"}), 400
+        if not host or not host.endswith('twimg.com'):
+            return jsonify({"success": False, "error": "host not allowed"}), 400
+        headers = {
+            "User-Agent": request.headers.get("User-Agent") or "Mozilla/5.0",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Referer": "https://x.com/",
+        }
+        upstream = requests.get(url, stream=True, timeout=20, headers=headers, verify=False, proxies=_get_proxies())
+        if upstream.status_code != 200:
+            return jsonify({"success": False, "status": upstream.status_code, "error": "upstream"}), 502
+        ct = upstream.headers.get("Content-Type") or "image/jpeg"
+        max_bytes = 6 * 1024 * 1024
+        def gen():
+            sent = 0
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                sent += len(chunk)
+                if sent > max_bytes:
+                    break
+                yield chunk
+        resp = Response(stream_with_context(gen()), mimetype=ct)
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 502
+
+
 @app.route('/api/news_radar', methods=['GET'])
 def news_radar():
     """多关键词新闻雷达（同时监控多个关键词）"""
     keywords_raw = request.args.get('keywords', '').strip()
     count = request.args.get('count', 20)
     include_foreign = request.args.get('foreign', '1') == '1'
+    lang = _get_request_lang()
+    do_translate = _get_translate_flag(lang)
+    llm_cfg = _get_llm_config_from_request_or_store() if do_translate and lang == 'zh' else None
     try:
         count = min(int(count), 50)
     except (ValueError, TypeError):
@@ -3049,6 +4698,8 @@ def news_radar():
         articles = search_news_multi_keywords(keywords, count_per_keyword=per_keyword, include_foreign=include_foreign)
         # 批量抓取全文
         _batch_fetch_fulltext(articles)
+        if do_translate and lang == 'zh':
+            translate_articles_to_lang(articles, lang, True, llm_cfg=llm_cfg)
         return jsonify({
             "success": True,
             "keywords": keywords,
@@ -3529,6 +5180,87 @@ def _get_kline_4h(ticker, limit):
         return jsonify({"success": False, "error": str(e)}), 503
 
 
+def _get_kline_intraday(ticker, interval: str, limit: int):
+    import datetime as dt
+
+    minutes_per_bar = {'15m': 15, '1h': 60}.get(interval)
+    if not minutes_per_bar:
+        return jsonify({"success": False, "error": f"不支持的周期: {interval}"}), 400
+
+    now = dt.datetime.now()
+    bars_per_day = 6.5 * 60 / minutes_per_bar
+    days_needed = max(7, int((limit + 52) / max(1, bars_per_day)) + 2)
+    if interval == '15m':
+        days_needed = min(60, days_needed)
+    else:
+        days_needed = min(180, days_needed)
+    start = now - dt.timedelta(days=days_needed)
+
+    yahoo_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    params = {
+        'period1': int(start.timestamp()),
+        'period2': int(now.timestamp()),
+        'interval': interval,
+        'includePrePost': 'true',
+    }
+    try:
+        yahoo_resp = requests.get(yahoo_url, params=params, timeout=20, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        yahoo_data = yahoo_resp.json()
+
+        if not yahoo_data.get('chart') or not yahoo_data['chart'].get('result'):
+            return jsonify({"success": False, "error": f"Yahoo {interval}数据获取失败"}), 503
+
+        result_data = yahoo_data['chart']['result'][0]
+        timestamps = result_data.get('timestamp', [])
+        quote = result_data.get('indicators', {}).get('quote', [{}])[0]
+        opens = quote.get('open', [])
+        highs = quote.get('high', [])
+        lows = quote.get('low', [])
+        closes = quote.get('close', [])
+        volumes = quote.get('volume', [])
+
+        kline_data = []
+        for i in range(len(timestamps)):
+            if i >= len(closes) or closes[i] is None:
+                continue
+            ts = timestamps[i]
+            dt_obj = dt.datetime.fromtimestamp(ts)
+            close_p = float(closes[i])
+            kline_data.append({
+                'date': dt_obj.strftime('%m/%d %H:%M'),
+                'open': float(opens[i]) if i < len(opens) and opens[i] else close_p,
+                'high': float(highs[i]) if i < len(highs) and highs[i] else close_p,
+                'low': float(lows[i]) if i < len(lows) and lows[i] else close_p,
+                'close': close_p,
+                'volume': int(volumes[i]) if i < len(volumes) and volumes[i] else 0,
+                'amount': 0,
+                'pct_change': 0,
+            })
+
+        if not kline_data:
+            return jsonify({"success": False, "error": f"无{interval}数据"}), 503
+
+        for i in range(1, len(kline_data)):
+            prev = kline_data[i-1]['close']
+            if prev > 0:
+                kline_data[i]['pct_change'] = ((kline_data[i]['close'] - prev) / prev) * 100
+
+        kline_data = kline_data[-limit:]
+
+        return jsonify({
+            "success": True,
+            "data": kline_data,
+            "week52_high": None,
+            "week52_low": None,
+            "source": f"yahoo_{interval}",
+        })
+    except Exception as e:
+        print(f"K线{interval}失败: {e}")
+        return jsonify({"success": False, "error": str(e)}), 503
+
+
 def _aggregate_group(group):
     """将一组1h柱聚合为一根K线"""
     if not group:
@@ -3550,7 +5282,7 @@ def _aggregate_group(group):
 def get_stock_kline():
     """获取美股K线历史数据（用于绘制K线图）"""
     ticker = request.args.get('ticker', 'XMAX').upper()
-    period = request.args.get('period', 'daily')  # daily / 4h
+    period = request.args.get('period', 'daily')  # daily / 4h / 1h / 15m
     limit = min(int(request.args.get('limit', '120')), 500)
 
     FINANCE_API_URL = "https://www.codebuddy.cn/v2/tool/financedata"
@@ -3558,6 +5290,8 @@ def get_stock_kline():
     # 4h 周期仅走 Yahoo Finance（金融API不支持小时级）
     if period == '4h':
         return _get_kline_4h(ticker, limit)
+    if period in ('1h', '15m'):
+        return _get_kline_intraday(ticker, period, limit)
 
     # 方案1：金融数据 API（仅日线）
     try:
@@ -3961,7 +5695,12 @@ def get_announcements():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'message': '深海有象后端服务运行中'})
+    lang = (request.args.get('lang') or '').strip().lower()
+    if lang not in ('zh', 'en'):
+        accept_lang = (request.headers.get('Accept-Language') or '').strip().lower()
+        lang = 'zh' if accept_lang.startswith('zh') else 'en'
+    msg = '深海有象后端服务运行中' if lang == 'zh' else 'Backend service is running'
+    return jsonify({'status': 'ok', 'message': msg, 'lang': lang})
 
 
 # 服务端持久化存储 LLM 配置（刷新不丢失）
@@ -3993,6 +5732,19 @@ def index():
         resp.headers.pop('Last-Modified', None)
         return resp
     return jsonify({'status': 'running'})
+
+
+@app.route('/index.html', methods=['GET'])
+def index_html():
+    return index()
+
+
+@app.route('/<path:path>', methods=['GET'])
+def spa_fallback(path):
+    from flask import abort
+    if str(path).startswith('api/'):
+        abort(404)
+    return index()
 
 
 # ============================================================
