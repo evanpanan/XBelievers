@@ -21,6 +21,7 @@ import time
 import threading
 import hashlib
 from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse, quote, urlencode
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -36,6 +37,55 @@ _tweet_sync_lock = threading.Lock()
 MUSK_NEWS_DB_CACHE_KEY = 'musk_news_domestic_v1'
 _musk_news_refresh_inflight = False
 _musk_news_refresh_lock = threading.Lock()
+
+MUSK_CATALYST_CONFIG = {
+    "updated": "2026-06-04T00:00:00Z",
+    "base_valuations_usd": {
+        "spacex": 1.75e12,
+        "neuralink": 44.0e9,
+        "boring": 5.675e9,
+    },
+    "base_total_override_usd": 1.800075e12,
+    "catalyst_facts": [
+        {
+            "key": "spacex",
+            "label_zh": "🚀【SpaceX】",
+            "label_en": "🚀 [SpaceX]",
+            "text_zh": "太空帝国核心资产。投行/市场口径估值区间 $1.75T–$2T，IPO 相关动态以 SEC/交易所披露为准。",
+            "text_en": "Core space asset. Street valuation range $1.75T–$2T; IPO signals should be verified via SEC/exchange filings.",
+        },
+        {
+            "key": "tesla",
+            "label_zh": "🚗【Tesla】",
+            "label_en": "🚗 [Tesla]",
+            "text_zh": "智能驾驶与机器人平台。FSD / Robotaxi 进展对估值弹性最敏感，关键节点以财报与监管披露为准。",
+            "text_en": "Autonomy & robotics platform. FSD/Robotaxi milestones drive valuation convexity; rely on filings/earnings for confirmation.",
+        },
+        {
+            "key": "neuralink",
+            "label_zh": "🧠【Neuralink】",
+            "label_en": "🧠 [Neuralink]",
+            "text_zh": "脑机接口赛道。最新公开口径估值 $44B；临床进展以官方披露与监管文件为准。",
+            "text_en": "BCI category. Latest public valuation $44B; clinical updates should follow official/regulatory disclosures.",
+        },
+        {
+            "key": "boring",
+            "label_zh": "🕳️【The Boring Company】",
+            "label_en": "🕳️ [The Boring Company]",
+            "text_zh": "地下隧道基础设施。最新公开口径估值 $5.675B；项目与融资以公司/政府公开资料为准。",
+            "text_en": "Tunneling infrastructure. Latest public valuation $5.675B; follow company/public records for financing & project updates.",
+        },
+    ],
+    "capital_structure": {
+        "locked_pct": 100,
+        "free_float_ratio": 0.075,
+        "voting_control_ratio": 0.842,
+        "locked_label_zh": "100% Locked",
+        "locked_label_en": "100% Locked",
+        "structure_text_zh": "Free Float Ratio: ~7.5% (Ultra-Tight Supply) | ABC股权绝对控盘: 84.2%",
+        "structure_text_en": "Free Float Ratio: ~7.5% (Ultra-Tight Supply) | ABC voting control: 84.2%",
+    },
+}
 
 
 @app.after_request
@@ -4349,6 +4399,281 @@ def news_search():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _parse_money_token_to_usd(num_str: str, unit: str) -> float:
+    try:
+        val = float(str(num_str).replace(',', '').strip())
+    except Exception:
+        return 0.0
+    u = str(unit or '').strip().lower()
+    if u in ('t', 'tn', 'trn', 'trillion'):
+        return val * 1e12
+    if u in ('b', 'bn', 'billion'):
+        return val * 1e9
+    if u in ('m', 'mm', 'mn', 'million'):
+        return val * 1e6
+    if u in ('k', 'thousand'):
+        return val * 1e3
+    return val
+
+
+def _extract_valuation_usd(text: str) -> Optional[dict]:
+    if not text:
+        return None
+    s = re.sub(r'\s+', ' ', str(text))
+    if not s:
+        return None
+
+    candidates = []
+
+    for m in re.finditer(r'(?:valued at|valuation of|valuation:|valued around|valued about)\s*(?:us\$|\$)\s*([\d.]+)\s*(trillion|billion|million|tn|bn|m)\b', s, flags=re.I):
+        usd = _parse_money_token_to_usd(m.group(1), m.group(2))
+        if usd > 0:
+            candidates.append((usd, m.group(0)))
+
+    for m in re.finditer(r'(?:估值|估价|估值约|估值为)\s*([0-9]+(?:\.[0-9]+)?)\s*(万亿|千亿|百亿|亿美元|亿美金|亿美元)', s):
+        val = float(m.group(1))
+        unit = m.group(2)
+        usd = 0.0
+        if unit == '万亿':
+            usd = val * 1e12
+        elif unit == '千亿':
+            usd = val * 1e11
+        elif unit == '百亿':
+            usd = val * 1e10
+        else:
+            usd = val * 1e8
+        if usd > 0:
+            candidates.append((usd, m.group(0)))
+
+    for m in re.finditer(r'(?:us\$|\$)\s*([\d.]+)\s*(t|b|m)\b', s, flags=re.I):
+        span = s[max(0, m.start() - 50): m.end() + 50].lower()
+        if 'valu' not in span and '估值' not in span and 'valuation' not in span:
+            continue
+        usd = _parse_money_token_to_usd(m.group(1), m.group(2))
+        if usd > 0:
+            candidates.append((usd, m.group(0)))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    usd, raw = candidates[0]
+    return {"usd": usd, "raw": raw}
+
+
+def _pick_latest_valuation(keyword: str, must_include_tokens: Optional[list] = None) -> Optional[dict]:
+    try:
+        articles = search_news_aggregated(keyword, 10, include_foreign=True)
+        if not articles:
+            return None
+        _batch_fetch_fulltext(articles)
+        tokens = [str(x).strip().lower() for x in (must_include_tokens or []) if str(x).strip()]
+        best = None
+        best_ms = 0
+        for a in articles:
+            blob = ' '.join([
+                str(a.get('title') or ''),
+                str(a.get('summary') or ''),
+                str(a.get('fullText') or ''),
+            ])
+            if tokens:
+                hay = blob.lower()
+                if not any(t in hay for t in tokens):
+                    continue
+            v = _extract_valuation_usd(blob)
+            if not v:
+                continue
+            t = a.get('time') or ''
+            ms = 0
+            try:
+                ms = int(datetime.fromisoformat(str(t).replace('Z', '+00:00')).timestamp() * 1000)
+            except Exception:
+                try:
+                    ms = int(parsedate_to_datetime(str(t)).timestamp() * 1000)
+                except Exception:
+                    ms = 0
+            if not best or ms >= best_ms:
+                best = {
+                    "usd": float(v["usd"]),
+                    "raw": v["raw"],
+                    "title": a.get('title') or '',
+                    "url": a.get('url') or '',
+                    "source": a.get('source') or '',
+                    "time": a.get('time') or '',
+                }
+                best_ms = ms
+        return best
+    except Exception:
+        return None
+
+
+def _pick_latest_valuation_multi(keywords: list, must_include_tokens: Optional[list] = None) -> Optional[dict]:
+    for kw in (keywords or []):
+        k = str(kw or '').strip()
+        if not k:
+            continue
+        v = _pick_latest_valuation(k, must_include_tokens=must_include_tokens)
+        if v:
+            return v
+    return None
+
+
+_musk_empire_vals_cache = {"ts": 0.0, "data": None}
+MUSK_EMPIRE_TOTAL_CACHE_KEY = "musk_empire_total_v1"
+
+
+@app.route('/api/musk_empire_vals', methods=['GET'])
+def musk_empire_vals():
+    now = time.time()
+    ttl = 30 * 60.0
+    cached = _musk_empire_vals_cache.get("data")
+    if cached and (now - float(_musk_empire_vals_cache.get("ts") or 0.0) < ttl):
+        return jsonify({"success": True, "data": cached, "source": "cache"})
+
+    spacex = _pick_latest_valuation_multi([
+        "Elon Musk SpaceX valuation",
+        "SpaceX valued at",
+        "SpaceX valuation",
+    ], must_include_tokens=["spacex"])
+    neuralink = _pick_latest_valuation_multi([
+        "Elon Musk Neuralink valuation",
+        "Neuralink valued at",
+        "Neuralink valuation",
+    ], must_include_tokens=["neuralink"])
+    boring = _pick_latest_valuation_multi([
+        "Elon Musk The Boring Company valuation",
+        "The Boring Company valued at",
+        "Boring Company valuation",
+    ], must_include_tokens=["the boring company", "boring company", "boring co"])
+    data = {
+        "spacex": spacex,
+        "neuralink": neuralink,
+        "boring": boring,
+        "updated": datetime.utcnow().isoformat() + "Z",
+    }
+    _musk_empire_vals_cache["ts"] = now
+    _musk_empire_vals_cache["data"] = data
+    return jsonify({"success": True, "data": data, "source": "news_search"})
+
+
+def _parse_iso_ts_seconds(s: str) -> float:
+    raw = str(s or '').strip()
+    if not raw:
+        return 0.0
+    try:
+        return datetime.fromisoformat(raw.replace('Z', '+00:00')).timestamp()
+    except Exception:
+        return 0.0
+
+
+def _yahoo_v7_market_cap_usd(ticker: str) -> float:
+    t = (ticker or '').strip().upper()
+    if not t:
+        return 0.0
+    try:
+        q_url = "https://query2.finance.yahoo.com/v7/finance/quote"
+        q_resp = requests.get(q_url, params={"symbols": t}, timeout=10, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        q_data = q_resp.json() if q_resp.text else {}
+        res0 = (q_data.get('quoteResponse') or {}).get('result') or []
+        if res0 and isinstance(res0, list):
+            cap = float(res0[0].get('marketCap') or 0) or 0.0
+            if cap > 0:
+                return cap
+    except Exception:
+        return 0.0
+    return 0.0
+
+
+@app.route('/api/musk_empire_total', methods=['GET'])
+def musk_empire_total():
+    ttl = 24 * 60 * 60
+    entry = _app_cache_get(MUSK_EMPIRE_TOTAL_CACHE_KEY)
+    cached_data = None
+    cached_ts = 0.0
+    if entry and entry.get('value'):
+        try:
+            cached_data = json.loads(entry.get('value') or '{}')
+        except Exception:
+            cached_data = None
+        cached_ts = _parse_iso_ts_seconds(entry.get('updated_at') or '')
+
+    now_ts = time.time()
+    if cached_data and cached_ts and (now_ts - cached_ts) < ttl:
+        return jsonify({"success": True, "data": cached_data, "source": "cache", "updated_at": entry.get('updated_at')})
+
+    tsla_cap = _yahoo_v7_market_cap_usd('TSLA') or 0.0
+    if not tsla_cap:
+        try:
+            tsla_cap = float(_google_finance_market_cap_usd('TSLA') or 0.0)
+        except Exception:
+            tsla_cap = 0.0
+
+    spacex = _pick_latest_valuation_multi([
+        "Elon Musk SpaceX valuation",
+        "SpaceX valued at",
+        "SpaceX valuation",
+    ], must_include_tokens=["spacex"])
+    neuralink = _pick_latest_valuation_multi([
+        "Elon Musk Neuralink valuation",
+        "Neuralink valued at",
+        "Neuralink valuation",
+    ], must_include_tokens=["neuralink"])
+    boring = _pick_latest_valuation_multi([
+        "Elon Musk The Boring Company valuation",
+        "The Boring Company valued at",
+        "Boring Company valuation",
+    ], must_include_tokens=["the boring company", "boring company", "boring co"])
+
+    spacex_usd = float(spacex.get('usd') or 0) if isinstance(spacex, dict) else 0.0
+    neuralink_usd = float(neuralink.get('usd') or 0) if isinstance(neuralink, dict) else 0.0
+    boring_usd = float(boring.get('usd') or 0) if isinstance(boring, dict) else 0.0
+    total = (tsla_cap if tsla_cap > 0 else 0.0) + (spacex_usd if spacex_usd > 0 else 0.0) + (neuralink_usd if neuralink_usd > 0 else 0.0) + (boring_usd if boring_usd > 0 else 0.0)
+
+    if total <= 0 and cached_data:
+        return jsonify({"success": True, "data": cached_data, "source": "stale_cache", "updated_at": entry.get('updated_at')})
+
+    if total <= 0:
+        return jsonify({"success": False, "error": "无法获取马斯克帝国总估值（上游数据源暂不可用）"}), 503
+
+    data = {
+        "total_usd": total,
+        "tsla_market_cap": tsla_cap,
+        "spacex": spacex,
+        "neuralink": neuralink,
+        "boring": boring,
+        "updated": datetime.utcnow().isoformat() + "Z",
+    }
+    _app_cache_set(MUSK_EMPIRE_TOTAL_CACHE_KEY, json.dumps(data, ensure_ascii=False))
+    entry2 = _app_cache_get(MUSK_EMPIRE_TOTAL_CACHE_KEY)
+    return jsonify({"success": True, "data": data, "source": "compute", "updated_at": (entry2 or {}).get('updated_at')})
+
+
+@app.route('/api/musk-catalyst', methods=['GET'])
+def musk_catalyst():
+    try:
+        cfg = MUSK_CATALYST_CONFIG or {}
+        base = cfg.get("base_valuations_usd") or {}
+        base_sum = float(base.get("spacex") or 0) + float(base.get("neuralink") or 0) + float(base.get("boring") or 0)
+        base_override = float(cfg.get("base_total_override_usd") or 0)
+        base_total = base_override if base_override > 0 else base_sum
+        out = {
+            "success": True,
+            "data": {
+                "updated": cfg.get("updated") or datetime.utcnow().isoformat() + "Z",
+                "base_valuations_usd": base,
+                "base_total_usd": base_total,
+                "catalyst_facts": cfg.get("catalyst_facts") or [],
+                "capital_structure": cfg.get("capital_structure") or {},
+            },
+        }
+        resp = jsonify(out)
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)[:200]}), 500
+
+
 @app.route('/api/news_feed', methods=['GET'])
 def news_feed():
     """新闻板块聚合：XMAX新闻 + 马斯克生态 + 马斯克推文，每15分钟刷新"""
@@ -4784,6 +5109,75 @@ def fetch_single_article():
         })
 
 
+def _parse_compact_amount_to_number(s: str) -> float:
+    s = (s or '').strip()
+    if not s:
+        return 0.0
+    s = s.replace('$', '').replace(',', '').strip()
+    m = re.search(r'([0-9]*\.?[0-9]+)\s*([KMBT])\b', s, re.IGNORECASE)
+    if not m:
+        try:
+            return float(s)
+        except Exception:
+            return 0.0
+    val = float(m.group(1))
+    unit = m.group(2).upper()
+    mul = {'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12}.get(unit, 1.0)
+    return val * mul
+
+
+def _google_finance_info(ticker: str) -> dict:
+    t = (ticker or '').strip().upper()
+    if not t:
+        return {}
+    url = f"https://www.google.com/finance/quote/{t}:NASDAQ"
+    r = requests.get(url, timeout=10, headers={
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+    })
+    html = r.text or ''
+    pairs = re.findall(r'<div class="mfs7Fc"[^>]*>([^<]+)</div>.*?<div class="P6K39c"[^>]*>([^<]*)', html)
+    return {p[0].strip(): p[1].strip() for p in pairs}
+
+
+def _google_finance_market_cap_usd(ticker: str) -> float:
+    try:
+        info = _google_finance_info(ticker)
+        if not info:
+            return 0.0
+        mcap = info.get('Market cap', '').strip()
+        return _parse_compact_amount_to_number(mcap)
+    except Exception:
+        return 0.0
+
+
+def _nasdaq_shares_outstanding(ticker: str) -> float:
+    t = (ticker or '').strip().upper()
+    if not t:
+        return 0.0
+    url = f"https://api.nasdaq.com/api/company/{t}/institutional-holdings"
+    r = requests.get(url, params={
+        "limit": 1,
+        "type": "TOTAL",
+        "sortColumn": "marketValue",
+    }, timeout=10, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.nasdaq.com/",
+        "Origin": "https://www.nasdaq.com",
+    })
+    j = r.json() if r.text else {}
+    shares_info = (j.get('data') or {}).get('ownershipSummary') or {}
+    v = (shares_info.get('ShareoutstandingTotal') or {}).get('value')
+    if not v:
+        return 0.0
+    try:
+        return float(str(v).replace(',', '')) * 1e6
+    except Exception:
+        return 0.0
+
+
 @app.route('/api/stock', methods=['GET'])
 def get_stock_data():
     """获取美股实时行情数据（支持 XMAX 等）"""
@@ -4852,19 +5246,8 @@ def get_stock_data():
                 market_cap = 0
                 shares_outstanding = 0  # 总股数
                 try:
-                    # 方案1：从 Nasdaq 获取总股数，乘以当前价格
-                    import subprocess
-                    nasdaq_resp = subprocess.run(
-                        ['curl', '-s', '-A', 'Mozilla/5.0', '-H', 'Referer: https://www.nasdaq.com/',
-                         f'https://api.nasdaq.com/api/company/{ticker}/institutional-holdings?limit=1&type=TOTAL&sortColumn=marketValue',
-                         '--max-time', '10'],
-                        capture_output=True, text=True, timeout=15
-                    )
-                    nasdaq_data = json.loads(nasdaq_resp.stdout) if nasdaq_resp.stdout else {}
-                    shares_info = nasdaq_data.get('data', {}).get('ownershipSummary', {}).get('ShareoutstandingTotal', {})
-                    shares_m = shares_info.get('value')
-                    if shares_m:
-                        shares_outstanding = float(shares_m) * 1e6
+                    shares_outstanding = _nasdaq_shares_outstanding(ticker)
+                    if shares_outstanding > 0 and current_price > 0:
                         market_cap = shares_outstanding * current_price
                 except Exception as nasdaq_err:
                     print(f"Nasdaq市值获取失败: {nasdaq_err}")
@@ -4892,6 +5275,25 @@ def get_stock_data():
                                     shares_outstanding = ks['sharesOutstanding'].get('raw', 0)
                     except Exception as stats_err:
                         print(f"Yahoo市值获取失败: {stats_err}")
+
+                if not market_cap:
+                    try:
+                        q_url = "https://query2.finance.yahoo.com/v7/finance/quote"
+                        q_resp = requests.get(q_url, params={"symbols": ticker}, timeout=10, headers={
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        })
+                        q_data = q_resp.json() if q_resp.text else {}
+                        res0 = (q_data.get('quoteResponse') or {}).get('result') or []
+                        if res0 and isinstance(res0, list):
+                            market_cap = float(res0[0].get('marketCap') or 0) or market_cap
+                    except Exception as q_err:
+                        print(f"Yahoo v7 quote 市值获取失败: {q_err}")
+
+                if not market_cap:
+                    try:
+                        market_cap = _google_finance_market_cap_usd(ticker) or 0
+                    except Exception:
+                        market_cap = market_cap or 0
 
                 vol = meta.get('regularMarketVolume', 0)
                 # 换手率 = 当日成交量 / 总股数 × 100%
@@ -5022,6 +5424,7 @@ def get_stock_data():
 
         # 备用方案4：Stock Analysis（简单页面抓取）
         try:
+            import re as _re
             sa_url = f"https://stockanalysis.com/stocks/{ticker.lower()}/"
             sa_resp = requests.get(sa_url, timeout=10, headers={
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -5276,6 +5679,40 @@ def _aggregate_group(group):
         'pct_change': 0,
     }
     return bar
+
+
+_spacex_next_cache = {"ts": 0.0, "data": None}
+
+
+@app.route('/api/spacex/next', methods=['GET'])
+def spacex_next_launch():
+    now = time.time()
+    ttl = 60.0
+    cached = _spacex_next_cache.get("data")
+    if cached and (now - float(_spacex_next_cache.get("ts") or 0.0) < ttl):
+        return jsonify({"success": True, "data": cached, "source": "spacexdata_cache"})
+
+    url = "https://api.spacexdata.com/v4/launches/next"
+    try:
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+        if r.status_code != 200:
+            return jsonify({"success": False, "error": f"SpaceX API status {r.status_code}"}), 503
+        j = r.json() if r.text else {}
+        data = {
+            "name": j.get("name"),
+            "date_utc": j.get("date_utc"),
+            "date_unix": j.get("date_unix"),
+            "id": j.get("id"),
+            "details": j.get("details"),
+            "success": j.get("success"),
+            "upcoming": j.get("upcoming"),
+            "links": j.get("links") or {},
+        }
+        _spacex_next_cache["ts"] = now
+        _spacex_next_cache["data"] = data
+        return jsonify({"success": True, "data": data, "source": "spacexdata"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 503
 
 
 @app.route('/api/stock/kline', methods=['GET'])
@@ -6310,8 +6747,14 @@ def get_institutional_holdings():
 if __name__ == '__main__':
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    host = (os.environ.get('HOST') or '0.0.0.0').strip() or '0.0.0.0'
+    port_raw = (os.environ.get('PORT') or os.environ.get('FLASK_PORT') or '5173').strip()
+    try:
+        port = int(port_raw)
+    except Exception:
+        port = 5173
     print("🚀 深海有象后端代理服务启动中...")
-    print("📡 监听地址: http://localhost:5173")
+    print(f"📡 监听地址: http://localhost:{port}")
     print("📋 API端点:")
     print("   GET  /api/health      - 健康检查")
     print("   GET  /api/providers   - 查看可用 LLM 服务商")
@@ -6322,4 +6765,4 @@ if __name__ == '__main__':
     print("   POST /api/fetch       - 抓取新闻链接")
     print("   POST /api/generate    - LLM 生成内容")
     print("   GET  /api/institutional_holdings - XMAX 机构持股")
-    app.run(host='0.0.0.0', port=5173, debug=False)
+    app.run(host=host, port=port, debug=False)

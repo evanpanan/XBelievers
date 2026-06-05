@@ -13,26 +13,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --primary: #7c7fff;
-      --primary-dark: #6366f1;
-      --primary-light: #a5b4fc;
-      --primary-muted: rgba(124,127,255,.12);
+      --primary: #22d3ee;
+      --primary-dark: #06b6d4;
+      --primary-light: #67e8f9;
+      --primary-muted: rgba(34,211,238,.12);
       --accent: #f59e0b;
-      --accent2: #10b981;
+      --accent2: #00E676;
       --accent3: #ef4444;
-      --bg: #0b0b14;
+      --bg0: #04060A;
+      --bg1: #0B0E14;
+      --bg: #04060A;
       --card: #13132a;
       --card2: #1a1a34;
       --card3: #161630;
       --card-bg: var(--card2);
       --btn-bg: var(--primary-muted);
       --hover-bg: rgba(255,255,255,.04);
-      --border: #252548;
+      --border: rgba(30,41,59,.55);
       --border-subtle: rgba(255,255,255,.06);
       --text: #e8eaf0;
-      --text2: #8b8fa8;
-      --text3: #5c6080;
-      --glow: rgba(99,102,241,.22);
+      --text2: #a6adc5;
+      --text3: rgba(148,163,184,.52);
+      --neon-green: #00E676;
+      --dash-card-border: rgba(0,230,118,.14);
+      --dash-card-pulse: rgba(0,230,118,.40);
+      --glow: rgba(0,230,118,.18);
       --radius-sm: 6px;
       --radius-md: 10px;
       --radius-lg: 16px;
@@ -56,10 +61,11 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
       font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: var(--bg);
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
       color: var(--text);
       min-height: 100dvh;
       overflow-x: hidden;
+      line-height: 1.45;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -78,7 +84,9 @@
     a:active { transform: scale(.97); }
     /* 减少动画偏好 */
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
+      *:not(.pulse-border):not(.pulse-pop):not(.tv-shift),
+      *:not(.pulse-border):not(.pulse-pop):not(.tv-shift)::before,
+      *:not(.pulse-border):not(.pulse-pop):not(.tv-shift)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -244,7 +252,7 @@
       font-weight:500;
     }
     .toast.show { transform:translateX(-50%) translateY(0); }
-    .toast.ok { border-color:rgba(16,185,129,.4);color:#34d399; }
+    .toast.ok { border-color:rgba(0,230,118,.28);color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.22); }
     .toast.err { border-color:rgba(239,68,68,.4);color:#fca5a5; }
 
     /* ===== 新闻滚动窗口 ===== */
@@ -591,8 +599,9 @@
       font-weight:700;
     }
     .stock-change.up {
-      background:rgba(16,185,129,0.15);
-      color:#34d399;
+      background:rgba(0,230,118,0.10);
+      color:var(--neon-green);
+      text-shadow:0 0 10px rgba(0,230,118,.18);
     }
     .stock-change.down {
       background:rgba(239,68,68,0.15);
@@ -634,7 +643,7 @@
       color:var(--text);
       font-variant-numeric: tabular-nums;
     }
-    .stock-stat-value.up { color:#34d399; }
+    .stock-stat-value.up { color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.20); }
     .stock-stat-value.down { color:#f87171; }
 
     /* K线迷你图区域 */
@@ -867,6 +876,8 @@
       box-shadow: var(--shadow-md);
       display:flex;
       flex-direction:column;
+      height:100%;
+      min-height:0;
     }
     .kline-page-head {
       display:flex;
@@ -941,8 +952,18 @@
       color:#fff;
       font-variant-numeric:tabular-nums;
     }
-    .kline-page-body { padding:12px 18px 8px; flex:1; }
-    .kline-page-chart { height:420px; cursor:crosshair; }
+    .kline-page-body { padding:12px 18px 8px; flex:1; min-height:0; display:flex; flex-direction:column; }
+    .kline-page-body .kline-tv-wrap { flex:1; min-height:0; }
+    .kline-page-chart { height:100%; min-height:320px; cursor:crosshair; }
+    .kline-page-chart.kline-entrance {
+      animation: klineEntrance 460ms cubic-bezier(0.25, 1, 0.5, 1) both;
+      will-change: transform, opacity;
+      transform-origin: 50% 55%;
+    }
+    @keyframes klineEntrance {
+      from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.985); }
+      to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
     .kline-page-foot {
       display:flex;
       align-items:flex-end;
@@ -962,7 +983,7 @@
       box-shadow:none;
     }
     #klinePageCard:fullscreen .kline-page-body { padding:14px 16px 10px; }
-    #klinePageCard:fullscreen .kline-page-chart { height: calc(100vh - 320px); min-height: 420px; }
+    #klinePageCard:fullscreen .kline-page-chart { height: 100%; min-height: 420px; }
     #klinePageCard:fullscreen .kline-page-head { position: sticky; top: 0; z-index: 2; background: rgba(11,11,20,.75); backdrop-filter: blur(10px); }
     #klinePageCard:fullscreen .kline-page-foot { position: sticky; bottom: 0; z-index: 2; background: rgba(11,11,20,.55); backdrop-filter: blur(10px); }
     .kline-page-update {
@@ -1001,7 +1022,7 @@
       padding:1px 5px;
       border-radius:4px;
     }
-    .market-status.open { background:rgba(52,211,153,.15); color:#34d399; }
+    .market-status.open { background:rgba(0,230,118,.12); color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.22); }
     .market-status.pre { background:rgba(245,158,11,.15); color:#f59e0b; }
     .market-status.after { background:rgba(251,146,60,.15); color:#fb923c; }
     .market-status.closed { background:rgba(248,113,113,.15); color:#f87171; }
@@ -1017,7 +1038,7 @@
       animation: flashRed .6s ease;
     }
     @keyframes flashGreen {
-      0% { color: #34d399; text-shadow: 0 0 8px rgba(52,211,153,.5); }
+      0% { color: var(--neon-green); text-shadow: 0 0 10px rgba(0,230,118,.35); }
       100% { color: var(--text); text-shadow: none; }
     }
     @keyframes flashRed {
@@ -1130,8 +1151,9 @@
       border-radius:10px;
       font-size:10px;
       font-weight:600;
-      background:rgba(16,185,129,0.15);
-      color:#34d399;
+      background:rgba(0,230,118,0.10);
+      color:var(--neon-green);
+      text-shadow:0 0 10px rgba(0,230,118,.18);
     }
     .announcement-badge.new {
       animation:pulse 2s infinite;
@@ -1582,7 +1604,7 @@
     .inst-stat-chip .label { font-size:11px; color:var(--text3); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
     .inst-stat-chip .value { font-size:16px; font-weight:800; color:var(--text); }
     .inst-stat-chip .value.purple { color:var(--primary-light); }
-    .inst-stat-chip .value.green { color:#34d399; }
+    .inst-stat-chip .value.green { color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.18); }
     .inst-stat-chip .value.amber { color:#fbbf24; }
     .inst-stat-chip .value.cyan { color:#22d3ee; }
 
@@ -1682,13 +1704,13 @@
       display:inline-flex; align-items:center; gap:4px;
       padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600;
       background:linear-gradient(135deg, rgba(16,185,129,.12), rgba(6,182,212,.12));
-      border:1px solid rgba(16,185,129,.35); color:#34d399; cursor:pointer;
+      border:1px solid rgba(0,230,118,.26); color:var(--neon-green); cursor:pointer;
       transition:all .2s; white-space:nowrap;
     }
     .inst-export-btn:hover {
       background:linear-gradient(135deg, rgba(16,185,129,.22), rgba(6,182,212,.22));
-      border-color:rgba(16,185,129,.55); transform:translateY(-1px);
-      box-shadow:0 4px 12px rgba(16,185,129,.15);
+      border-color:rgba(0,230,118,.40); transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(0,230,118,.12);
     }
     .inst-table-wrap { overflow-x:auto; padding-right:18px; box-sizing:border-box; }
     .inst-table {
@@ -1697,7 +1719,7 @@
     .inst-table thead th {
       padding:12px 16px; text-align:left; font-weight:700; font-size:11px;
       color:var(--text3); text-transform:uppercase; letter-spacing:.6px;
-      background:var(--card2); border-bottom:1px solid var(--border);
+      background:var(--card2); border-bottom:1px dashed rgba(30,41,59,.50);
       position:sticky; top:0; white-space:nowrap;
     }
     .inst-table thead th:last-child { text-align:right; min-width:118px; width:118px; padding-right:22px; }
@@ -1708,7 +1730,10 @@
     }
     .inst-table tbody tr:hover { background:rgba(99,102,241,.06); }
     .inst-table tbody td {
-      padding:11px 16px; border-bottom:1px solid rgba(42,42,72,.5);
+      padding:11px 16px;
+      border-bottom:1px dashed rgba(30,41,59,.50);
+      border-left:0;
+      border-right:0;
       color:var(--text); white-space:nowrap;
     }
     .inst-num-enter {
@@ -1723,16 +1748,20 @@
     .inst-table tbody td.shares { font-variant-numeric:tabular-nums; }
     .inst-table tbody td.change { font-variant-numeric:tabular-nums; font-size:12px; }
     .inst-table tbody td.change-up { color:#f87171; }
-    .inst-table tbody td.change-down { color:#34d399; }
+    .inst-table tbody td.change-down { color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.16); }
     .inst-table tbody td.change-pct { font-variant-numeric:tabular-nums; font-size:12px; }
     .inst-table tbody td.change-pct.change-up { color:#f87171; }
-    .inst-table tbody td.change-pct.change-down { color:#34d399; }
+    .inst-table tbody td.change-pct.change-down { color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.16); }
     .inst-table tbody td.change-pct.change-new { color:#fbbf24; font-weight:700; }
     .inst-table tbody td.change-pct.change-sold { color:#94a3b8; font-style:italic; }
     .inst-table tbody td.date { color:var(--text3); font-size:11px; font-variant-numeric:tabular-nums; letter-spacing:.15px; }
     .inst-table tbody td.value { font-weight:700; color:#fbbf24; font-variant-numeric:tabular-nums; }
     .inst-table tfoot td {
-      padding:14px 16px; border-top:2px solid var(--border); font-weight:800;
+      padding:14px 16px;
+      border-top:1px dashed rgba(30,41,59,.50);
+      border-left:0;
+      border-right:0;
+      font-weight:800;
       background:rgba(99,102,241,.06);
     }
     .inst-table tfoot td:first-child { text-align:center; }
@@ -2203,7 +2232,7 @@
       bottom:10px;
       width:2px;
       border-radius:999px;
-      background:linear-gradient(180deg, rgba(29,161,242,.18), rgba(29,161,242,.82), rgba(34,197,94,.18));
+      background:linear-gradient(180deg, rgba(29,161,242,.18), rgba(29,161,242,.82), rgba(0,230,118,.18));
       box-shadow:0 0 14px rgba(29,161,242,.22);
       opacity:.72;
     }
@@ -2247,10 +2276,10 @@
       box-shadow:0 0 12px rgba(29,161,242,.08);
     }
     .tweet-type.repost {
-      border-color:rgba(34,197,94,.18);
-      background:rgba(34,197,94,.10);
-      color:rgba(187,247,208,.92);
-      box-shadow:0 0 12px rgba(34,197,94,.08);
+      border-color:rgba(0,230,118,.16);
+      background:rgba(0,230,118,.08);
+      color:rgba(220,252,231,.92);
+      box-shadow:0 0 14px rgba(0,230,118,.10);
     }
     .ticker-pill {
       position:relative;
@@ -2280,19 +2309,20 @@
       width:6px;
       height:6px;
       border-radius:999px;
-      background:#22c55e;
-      box-shadow:0 0 10px rgba(34,197,94,.52);
+      background:var(--neon-green);
+      box-shadow:0 0 12px rgba(0,230,118,.35);
       animation:dashLivePing 1.3s ease-out infinite;
       flex:0 0 auto;
     }
 
     /* ===== Dashboard（TV Wall）===== */
     :root { --header-h: 72px; --tv-scale: 1; }
-    :fullscreen { --tv-scale: 1.22; }
+    :fullscreen { --tv-scale: 1.26; }
     html, body { height:100%; overflow:hidden; }
     header { height:var(--header-h); position:sticky; top:0; z-index:200; }
     .dash-main { height:calc(100vh - var(--header-h)); }
     .dash-wrap { height:100%; }
+    .tv-shift { transform: translate3d(var(--burnin-x, 0px), var(--burnin-y, 0px), 0); will-change: transform; }
     :fullscreen .wrap {
       max-width:none;
       width:100%;
@@ -2332,7 +2362,7 @@
     .ticker-pill .sym { font-size:calc(11px * var(--tv-scale)); font-weight:800; color:rgba(232,234,240,.78); }
     .ticker-pill .px { font-size:calc(15px * var(--tv-scale)); font-weight:900; font-variant-numeric:tabular-nums; color:rgba(255,255,255,.95); }
     .ticker-pill .chg { font-size:calc(11px * var(--tv-scale)); font-weight:900; font-variant-numeric:tabular-nums; }
-    .ticker-pill .chg.up { color:#00E676; }
+    .ticker-pill .chg.up { color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.22); }
     .ticker-pill .chg.down { color:#FF5252; }
     .page-fs-btn {
       display:inline-flex; align-items:center; justify-content:center; gap:6px;
@@ -2347,7 +2377,7 @@
     }
     .page-fs-btn:hover { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.16); color:#fff; }
     .page-fs-btn:active { transform:translateY(1px); }
-    .page-fs-btn.active { border-color:rgba(34,197,94,.28); color:#dcfce7; box-shadow:0 0 0 1px rgba(34,197,94,.08), 0 0 20px rgba(34,197,94,.10); }
+    .page-fs-btn.active { border-color:rgba(0,230,118,.22); color:rgba(220,252,231,.92); box-shadow:0 0 0 1px rgba(0,230,118,.08), 0 0 22px rgba(0,230,118,.10); }
     .page-fs-btn .ico { font-size:13px; line-height:1; opacity:.9; }
     .ticker-meta {
       display:flex; flex-direction:column; align-items:flex-end; gap:2px;
@@ -2365,20 +2395,51 @@
     .dash-card {
       position:relative;
       background:var(--glass-strong);
-      border:1px solid rgba(255,255,255,.08);
+      border:1px solid var(--dash-card-border);
       border-radius:var(--radius-xl);
       overflow:hidden;
       backdrop-filter: blur(var(--blur));
       box-shadow: var(--shadow-md);
       min-height:0;
       isolation:isolate;
+      transition: transform 220ms cubic-bezier(0.25, 1, 0.5, 1), border-color 220ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 220ms cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    @media (hover:hover) and (pointer:fine) {
+      .dash-card:hover {
+        z-index: 6;
+        animation:
+          dashCardHoverBlueOnce 920ms ease-in-out both,
+          dashCardPop 460ms cubic-bezier(0.25, 1, 0.5, 1) both;
+      }
+    }
+    .dash-card.pulse-border {
+      animation:dashCardPulseBorder 1.5s ease-in-out both;
+    }
+    .dash-card.pulse-pop {
+      animation:dashCardPop 1.5s ease-in-out both;
+    }
+    @keyframes dashCardPulseBorder {
+      0% { border-color:rgba(0,230,118,.82); box-shadow:0 0 0 1px rgba(0,230,118,.18), 0 0 34px rgba(0,230,118,.20), 0 0 16px rgba(34,211,238,.10), var(--shadow-md); }
+      45% { border-color:rgba(0,230,118,.34); box-shadow:0 0 0 1px rgba(0,230,118,.12), 0 0 28px rgba(0,230,118,.12), 0 0 12px rgba(34,211,238,.08), var(--shadow-md); }
+      100% { border-color:var(--dash-card-border); box-shadow: var(--shadow-md); }
+    }
+    @keyframes dashCardPop {
+      0% { transform: translate3d(0, 0, 0) scale(1); }
+      18% { transform: translate3d(0, -2px, 0) scale(1.01); }
+      55% { transform: translate3d(0, -1px, 0) scale(1.008); }
+      100% { transform: translate3d(0, 0, 0) scale(1); }
+    }
+    @keyframes dashCardHoverBlueOnce {
+      0% { border-color: rgba(6,182,212,.82); box-shadow: 0 0 0 1px rgba(6,182,212,.22), 0 0 34px rgba(6,182,212,.20), 0 0 18px rgba(56,189,248,.10), var(--shadow-md); }
+      55% { border-color: rgba(6,182,212,.30); box-shadow: 0 0 0 1px rgba(6,182,212,.14), 0 0 24px rgba(6,182,212,.12), 0 0 14px rgba(56,189,248,.08), var(--shadow-md); }
+      100% { border-color: var(--dash-card-border); box-shadow: var(--shadow-md); }
     }
     .dash-card::before {
       content:'';
       position:absolute;
       inset:0;
       background:
-        radial-gradient(280px 120px at 12% 0%, rgba(124,127,255,.12), transparent 64%),
+        radial-gradient(280px 120px at 12% 0%, rgba(0,230,118,.10), transparent 64%),
         radial-gradient(260px 140px at 88% 0%, rgba(34,211,238,.08), transparent 68%);
       opacity:.9;
       pointer-events:none;
@@ -2389,7 +2450,7 @@
       position:absolute;
       inset:-35% auto -35% -32%;
       width:42%;
-      background:linear-gradient(90deg, rgba(255,255,255,0), rgba(124,127,255,.06), rgba(34,211,238,.04), rgba(255,255,255,0));
+      background:linear-gradient(90deg, rgba(255,255,255,0), rgba(34,211,238,.06), rgba(0,230,118,.05), rgba(255,255,255,0));
       transform:skewX(-18deg);
       animation:dashCardSweep 9.5s linear infinite;
       opacity:.42;
@@ -2404,15 +2465,17 @@
       100% { transform:translateX(360%) skewX(-18deg); opacity:0; }
     }
     .dash-card-head {
+      position:relative;
       display:flex; align-items:center; justify-content:space-between;
-      padding:12px 14px;
+      padding:12px 16px;
       border-bottom:1px solid rgba(255,255,255,.06);
       font-size:calc(12px * var(--tv-scale));
       font-weight:900;
       color:rgba(255,255,255,.9);
       letter-spacing:.35px;
-      background:rgba(255,255,255,.02);
-      height:44px;
+      background:rgba(255,255,255,.015);
+      height:48px;
+      gap:10px;
       white-space:nowrap;
       overflow:hidden;
     }
@@ -2423,7 +2486,7 @@
       right:14px;
       bottom:0;
       height:1px;
-      background:linear-gradient(90deg, rgba(124,127,255,0), rgba(124,127,255,.42), rgba(34,211,238,.24), rgba(124,127,255,0));
+      background:linear-gradient(90deg, rgba(0,230,118,0), rgba(0,230,118,.42), rgba(34,211,238,.24), rgba(0,230,118,0));
       opacity:.75;
       pointer-events:none;
     }
@@ -2440,7 +2503,7 @@
     .dash-kmini-body,
     .dash-instmini-body {
       padding:12px 14px;
-      height:calc(100% - 44px);
+      height:calc(100% - 48px);
       display:flex;
       flex-direction:column;
       gap:10px;
@@ -2448,6 +2511,11 @@
     .dash-mini-stage { flex:1; min-height:0; display:flex; flex-direction:column; }
     .dash-kpi { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
     .dash-metric { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px; display:flex; flex-direction:column; justify-content:center; min-height:54px; }
+    .dash-metric {
+      background:rgba(255,255,255,.025);
+      border-color:rgba(6,182,212,.10);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);
+    }
     .dash-metric .lbl { font-size:calc(9px * var(--tv-scale)); color:rgba(232,234,240,.52); font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .dash-metric .val { margin-top:4px; font-size:calc(13px * var(--tv-scale)); font-weight:900; color:rgba(255,255,255,.92); font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:transform .22s ease, filter .22s ease, opacity .22s ease; }
     .dash-kmini .dash-metric .val { font-size:calc(15px * var(--tv-scale)); }
@@ -2500,19 +2568,19 @@
       content:'';
       position:absolute;
       inset:14px 10px 14px 10px;
-      background:linear-gradient(90deg, rgba(16,185,129,.20), rgba(34,197,94,.95), rgba(134,239,172,.55));
+      background:linear-gradient(90deg, rgba(0,230,118,.18), rgba(0,230,118,.95), rgba(134,239,172,.28));
       clip-path: polygon(
         0% 74%, 10% 60%, 20% 66%, 34% 44%, 48% 54%, 62% 30%, 76% 38%, 88% 24%, 100% 18%,
         100% 22%, 88% 28%, 76% 42%, 62% 34%, 48% 58%, 34% 48%, 20% 70%, 10% 64%, 0% 78%
       );
-      filter: drop-shadow(0 0 7px rgba(34,197,94,.45)) drop-shadow(0 0 18px rgba(16,185,129,.18));
+      filter: drop-shadow(0 0 8px rgba(0,230,118,.28)) drop-shadow(0 0 22px rgba(0,230,118,.12));
       opacity:.95;
       pointer-events:none;
       z-index:1;
     }
     .dash-spark-wrap.has-data::after { opacity:.18; }
 
-    .dash-flash-body { padding:12px 14px; height:calc(100% - 44px); display:flex; flex-direction:column; gap:8px; position:relative; }
+    .dash-flash-body { padding:12px 14px; height:calc(100% - 48px); display:flex; flex-direction:column; gap:8px; position:relative; }
     .dash-badge {
       display:inline-flex; align-items:center; gap:6px;
       padding:5px 10px;
@@ -2540,12 +2608,12 @@
       height:74px;
       border-radius:999px;
       position:relative;
-      border:1px solid rgba(34,197,94,.22);
+      border:1px solid rgba(0,230,118,.22);
       background:
-        radial-gradient(circle at 50% 50%, rgba(34,197,94,.14), transparent 58%),
-        radial-gradient(circle at 50% 50%, rgba(34,197,94,.06), transparent 72%),
+        radial-gradient(circle at 50% 50%, rgba(0,230,118,.14), transparent 58%),
+        radial-gradient(circle at 50% 50%, rgba(0,230,118,.06), transparent 72%),
         radial-gradient(circle at 50% 50%, rgba(255,255,255,.06), transparent 78%);
-      box-shadow: 0 0 28px rgba(34,197,94,.10);
+      box-shadow: 0 0 28px rgba(0,230,118,.10);
       overflow:hidden;
     }
     .dash-radar::before {
@@ -2563,7 +2631,7 @@
       content:'';
       position:absolute;
       inset:-30%;
-      background:conic-gradient(from 0deg, rgba(34,197,94,0) 0 72%, rgba(34,197,94,.28) 78%, rgba(34,197,94,.02) 84%, rgba(34,197,94,0) 100%);
+      background:conic-gradient(from 0deg, rgba(0,230,118,0) 0 72%, rgba(0,230,118,.28) 78%, rgba(0,230,118,.02) 84%, rgba(0,230,118,0) 100%);
       animation:dashRadarSweep 1.65s linear infinite;
       filter: blur(.2px);
       opacity:.95;
@@ -2589,12 +2657,26 @@
       -webkit-box-orient:vertical;
       overflow:hidden;
     }
-    .dash-flash-title { font-size:calc(12px * var(--tv-scale)); font-weight:900; line-height:1.45; color:rgba(255,255,255,.92); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-    .dash-flash-sub { font-size:calc(10px * var(--tv-scale)); color:rgba(232,234,240,.52); line-height:1.55; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+    .dash-flash-title { font-size:calc(14px * var(--tv-scale)); font-weight:900; line-height:1.45; color:rgba(255,255,255,.92); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    .dash-flash-sub { font-size:calc(12px * var(--tv-scale)); color:rgba(232,234,240,.52); line-height:1.55; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
     .dash-flash-title.typing,
     .dash-flash-sub.typing { position:relative; }
     .dash-flash-title.typing::after,
     .dash-flash-sub.typing::after {
+      content:'';
+      display:inline-block;
+      width:1px;
+      height:1.05em;
+      margin-left:3px;
+      vertical-align:-.14em;
+      background:rgba(165,180,252,.88);
+      box-shadow:0 0 8px rgba(124,127,255,.35);
+      animation:dashTypingCaret .85s step-end infinite;
+    }
+    .catalyst-top-sub.typing,
+    .catalyst-cushion.typing { position:relative; }
+    .catalyst-top-sub.typing::after,
+    .catalyst-cushion.typing::after {
       content:'';
       display:inline-block;
       width:1px;
@@ -2610,7 +2692,7 @@
       49%, 100% { opacity:0; }
     }
     .dash-flash-foot { margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:28px; }
-    .dash-flash-time { font-size:calc(10px * var(--tv-scale)); color:rgba(232,234,240,.45); font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+    .dash-flash-time { font-size:calc(11px * var(--tv-scale)); color:rgba(232,234,240,.45); font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
     .dash-flash-nav { display:inline-flex; align-items:center; gap:8px; min-width:0; }
     .dash-flash-nav-btn {
       width:24px; height:24px; border-radius:999px; border:1px solid rgba(255,255,255,.10);
@@ -2671,22 +2753,23 @@
       gap:7px;
       padding:4px 10px;
       border-radius:999px;
-      border:1px solid rgba(34,197,94,.22);
-      background:rgba(34,197,94,.10);
-      color:rgba(187,247,208,.92);
+      border:1px solid rgba(0,230,118,.22);
+      background:rgba(0,230,118,.08);
+      color:rgba(220,252,231,.92);
       font-size:10px;
       font-weight:900;
       letter-spacing:.35px;
-      box-shadow:0 0 22px rgba(34,197,94,.10);
+      box-shadow:0 0 24px rgba(0,230,118,.10);
       user-select:none;
       white-space:nowrap;
+      line-height:1;
     }
     .dash-live-engaged .dot {
       width:7px;
       height:7px;
       border-radius:999px;
-      background:#22c55e;
-      box-shadow:0 0 10px rgba(34,197,94,.65);
+      background:var(--neon-green);
+      box-shadow:0 0 12px rgba(0,230,118,.45);
       position:relative;
     }
     .dash-live-engaged .dot::after {
@@ -2694,7 +2777,7 @@
       position:absolute;
       inset:-5px;
       border-radius:999px;
-      border:1px solid rgba(34,197,94,.35);
+      border:1px solid rgba(0,230,118,.28);
       animation:dashLivePing 1.1s ease-out infinite;
       opacity:.55;
     }
@@ -2713,16 +2796,16 @@
     .dash-chip .val.purple { color:#a78bfa; }
     .dash-chip .val.amber { color:#fbbf24; }
     .dash-chip .val.cyan { color:#22d3ee; }
-    .dash-chip .val.green { color:#34d399; }
+    .dash-chip .val.green { color:var(--neon-green); text-shadow:0 0 10px rgba(0,230,118,.16); }
 
     .dash-map { min-height:0; position:relative; margin-top: var(--map-offset, 0px); }
     .dash-map .inst-map-section { margin:0; border:0; background:transparent; }
     .dash-map .inst-map-title { padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.06); margin:0; }
     .dash-map #instMapCanvas { height:100%; min-height:420px; border-radius:14px; }
-    .dash-map-body { position:relative; padding:10px 12px 10px; height:calc(100% - 44px); display:flex; flex-direction:column; gap:10px; }
+    .dash-map-body { position:relative; padding:10px 12px 10px; height:calc(100% - 48px); display:flex; flex-direction:column; gap:10px; }
     .dash-map-body #instMapCanvas { flex:1; height:auto; min-height:420px; }
     .dash-map-body .inst-map-legend { margin-top:auto; }
-    .dash-mid-panel { height:calc(100% - 44px); min-height:0; }
+    .dash-mid-panel { height:calc(100% - 48px); min-height:0; }
     .dash-mid-panel.hidden { display:none; }
     .dash-mid-tabs {
       width:100%;
@@ -2920,6 +3003,137 @@
     }
     .dash-feed .announcement-item:last-child { border-bottom:0; }
     .dash-feed .ann-pagination { display:none !important; }
+    .dash-catalyst { min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    #valueCatalystCard .dash-card-head {
+      height:48px;
+      min-height:48px;
+      white-space:nowrap;
+      flex-wrap:nowrap;
+      align-items:center;
+      gap:10px;
+      padding:12px 14px;
+    }
+    #valueCatalystCard .dash-card-head::after { opacity:.55; }
+    #valueCatalystCard .dash-catalyst-title {
+      flex:1;
+      min-width:0;
+      line-height:1.22;
+      font-size:12px;
+      letter-spacing:.6px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    #valueCatalystCard .dash-catalyst-badge { margin-left:auto; flex:0 0 auto; }
+    .dash-catalyst-title { display:flex; align-items:baseline; gap:8px; font-size:11px; font-weight:900; letter-spacing:.6px; text-transform:uppercase; color:rgba(255,255,255,.90); }
+    .dash-catalyst-sub { font-size:10px; font-weight:800; letter-spacing:.2px; color:rgba(148,163,184,.60); text-transform:none; }
+    .dash-catalyst-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:4px 9px;
+      border-radius:999px;
+      border:1px solid rgba(0,230,118,.22);
+      background:rgba(0,230,118,.08);
+      color:rgba(208,255,228,.92);
+      font-size:9.5px;
+      font-weight:900;
+      letter-spacing:.6px;
+      white-space:nowrap;
+      box-shadow:0 0 0 1px rgba(0,230,118,.06), 0 0 22px rgba(0,230,118,.10);
+      line-height:1;
+    }
+    .dash-catalyst-badge .dot {
+      width:7px;
+      height:7px;
+      border-radius:999px;
+      background:var(--neon-green);
+      box-shadow:0 0 12px rgba(0,230,118,.45);
+      position:relative;
+    }
+    .dash-catalyst-badge .dot::after {
+      content:'';
+      position:absolute;
+      inset:-5px;
+      border-radius:999px;
+      border:1px solid rgba(0,230,118,.28);
+      animation:dashLivePing 1.1s ease-out infinite;
+      opacity:.55;
+    }
+    .dash-catalyst-body { flex:1; min-height:0; padding:12px 12px 12px; display:flex; flex-direction:column; gap:10px; }
+    .catalyst-top {
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(0,230,118,.20);
+      background:linear-gradient(180deg, rgba(0,230,118,.07), rgba(0,0,0,0));
+      box-shadow:0 0 0 1px rgba(0,230,118,.08), 0 0 26px rgba(0,230,118,.12);
+    }
+    .catalyst-top-label { font-size:10px; font-weight:900; letter-spacing:.6px; color:rgba(226,232,240,.70); text-transform:uppercase; }
+    .catalyst-top-value {
+      margin-top:6px;
+      font-size:24px;
+      font-weight:950;
+      letter-spacing:.4px;
+      color:#00E676;
+      text-shadow:0 0 18px rgba(0,230,118,.18);
+      animation: vcTick 3.2s ease-in-out infinite;
+    }
+    @keyframes vcTick {
+      0%, 100% { transform: translate3d(0,0,0); }
+      14% { transform: translate3d(0,-1px,0); }
+      26% { transform: translate3d(0,0,0); }
+    }
+    .catalyst-top-sub { margin-top:6px; font-size:10px; color:rgba(148,163,184,.66); white-space:normal; line-height:1.35; }
+    .catalyst-cushion {
+      margin-top:8px;
+      font-size:11px;
+      color:rgba(232,234,240,.82);
+      border-top:1px dashed rgba(30,41,59,.45);
+      padding-top:8px;
+    }
+    .catalyst-cushion .up { color:#00E676; text-shadow:0 0 14px rgba(0,230,118,.18); font-weight:900; }
+    .catalyst-cushion .down { color:rgba(248,113,113,.92); font-weight:900; }
+    .catalyst-lock {
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(6,182,212,.10);
+      background:rgba(255,255,255,.02);
+    }
+    .catalyst-lock-title { font-size:10px; font-weight:950; letter-spacing:.7px; color:rgba(226,232,240,.74); text-transform:uppercase; }
+    .catalyst-lock-row { display:flex; align-items:center; gap:10px; margin-top:10px; }
+    .lock-bar { flex:1; height:10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.03); overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.03); }
+    .lock-bar-fill { height:100%; border-radius:999px; background:linear-gradient(90deg, rgba(0,230,118,.55), rgba(56,189,248,.28)); box-shadow:0 0 18px rgba(0,230,118,.14); }
+    .lock-bar-label { font-size:10px; color:rgba(148,163,184,.66); white-space:nowrap; }
+    .catalyst-lock-note { margin-top:8px; font-size:10px; color:rgba(148,163,184,.60); white-space:pre-line; }
+    .catalyst-stream { flex:1; min-height:0; overflow:auto; padding-right:10px; }
+    .catalyst-item {
+      padding:10px 10px;
+      border-bottom:1px dashed rgba(30,41,59,.50);
+      color:rgba(255,255,255,.84);
+      font-size:11px;
+      line-height:1.35;
+      letter-spacing:.1px;
+    }
+    .catalyst-item:last-child { border-bottom:0; }
+    .catalyst-item .tag {
+      display:inline-flex;
+      align-items:center;
+      height:18px;
+      padding:0 8px;
+      margin-right:8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:.6px;
+      color:rgba(232,234,240,.78);
+      white-space:nowrap;
+    }
+    .catalyst-item .tag.live { border-color:rgba(0,230,118,.20); background:rgba(0,230,118,.08); color:rgba(208,255,228,.92); }
+    .catalyst-item .tag.brk { border-color:rgba(56,189,248,.18); background:rgba(56,189,248,.08); color:rgba(224,247,255,.90); }
+    .catalyst-item .tag.syn { border-color:rgba(124,127,255,.18); background:rgba(124,127,255,.10); color:rgba(232,234,255,.90); }
+    .catalyst-item .tag.prc { border-color:rgba(251,191,36,.16); background:rgba(251,191,36,.08); color:rgba(255,245,210,.88); }
     .scrollbar-none { scrollbar-width:none; -ms-overflow-style:none; }
     .scrollbar-none::-webkit-scrollbar { width:0; height:0; display:none; }
     .auto-scroll-inner { display:block; }
@@ -2948,13 +3162,100 @@
     }
     .x-feed-tab.active { background:rgba(29,161,242,.14); border-color:rgba(29,161,242,.26); color:rgba(255,255,255,.92); }
 
+    @media (max-width: 860px) {
+      :root { --gap: 10px; }
+      html, body { height:auto; overflow:auto; overflow-x:hidden; }
+      body { touch-action: pan-y; }
+      .wrap { padding:0 14px; max-width:100vw; }
+      header { height:auto; padding:10px 0 8px; background:rgba(9,10,20,.62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+      .dash-main { height:auto; min-height:100vh; padding-bottom:14px; }
+      .dash-wrap { height:auto; }
+      .hd { display:flex; flex-direction:column; align-items:stretch; gap:8px; }
+      .logo { justify-content:flex-start; gap:8px; width:100%; }
+      .logo h1 { font-size:14px; font-weight:800; opacity:.92; }
+      header .logo-ico { width:28px; height:28px; }
+      .dash-title { font-size:18px; line-height:1.15; }
+      .dash-subtitle { display:none; }
+      .hd-center { text-align:left; }
+      .hd-right { justify-content:space-between; flex-wrap:wrap; gap:8px; }
+      .ticker-pill { flex:1; min-width:0; padding:8px 10px; justify-content:space-between; }
+      .ticker-pill .px { font-size:14px; }
+      .page-fs-btn { min-width:72px; height:36px; padding:0 12px; }
+      .header-status { display:none; }
+
+      .dash-grid { height:auto; grid-template-columns:1fr; }
+      .dash-left, .dash-right { grid-column:1 / -1; height:auto; display:flex; flex-direction:column; gap:var(--gap); }
+      .dash-top-cards { height:auto; grid-template-columns:1fr; }
+      .dash-kmini, .dash-flash, .dash-instmini { grid-column:1 / -1; }
+
+      .dash-card::after { animation:none; opacity:.18; }
+      .dash-card-head { height:46px; padding:10px 12px; }
+
+      .dash-map-body { height:auto; padding:10px 10px 10px; }
+      .dash-map #instMapCanvas { min-height:320px; }
+      .dash-map-body #instMapCanvas { min-height:320px; }
+
+      aside.dash-right .dash-feed .dash-feed-body { max-height:44vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+      aside.dash-right #valueCatalystCard .catalyst-stream { max-height:44vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+
+      #dashPanelHoldings .dash-scroll { overflow:hidden; }
+      #dashPanelHoldings .inst-table-header { flex-direction:column; align-items:stretch; gap:10px; }
+      #dashPanelHoldings .inst-table-controls { width:100%; flex-wrap:wrap; }
+      #dashPanelHoldings .inst-search-wrap { width:100%; }
+      #dashPanelHoldings .inst-search { width:100%; }
+      #dashPanelHoldings .inst-export-btn { width:100%; justify-content:center; }
+
+      #dashPanelHoldings .inst-table-wrap { overflow-x:hidden; padding-right:0; touch-action:pan-y; }
+      #dashPanelHoldings .inst-table { width:100%; min-width:0; table-layout:fixed; }
+      #dashPanelHoldings .inst-table thead th { padding:8px 10px; font-size:10px; }
+      #dashPanelHoldings .inst-table tbody td { padding:10px 10px; font-size:11px; }
+      #dashPanelHoldings .inst-table thead th:nth-child(1) { width:34px !important; }
+
+      #dashPanelHoldings .inst-table thead th:nth-child(3),
+      #dashPanelHoldings .inst-table thead th:nth-child(5),
+      #dashPanelHoldings .inst-table thead th:nth-child(6),
+      #dashPanelHoldings .inst-table thead th:nth-child(8) { display:none; }
+
+      #dashPanelHoldings .inst-table tbody td.name-cn,
+      #dashPanelHoldings .inst-table tbody td.change,
+      #dashPanelHoldings .inst-table tbody td.change-pct,
+      #dashPanelHoldings .inst-table tbody td.date { display:none; }
+
+      #dashPanelHoldings .inst-table tbody td.name-en { max-width:none; overflow:visible; text-overflow:clip; white-space:normal; }
+      #dashPanelHoldings .inst-table tbody td.shares,
+      #dashPanelHoldings .inst-table tbody td.value { white-space:nowrap; }
+
+      #dashPanelHoldings .inst-table tfoot { display:none; }
+
+      #dashPanelHoldings .inst-name-en {
+        font-weight:900;
+        color:rgba(255,255,255,.88);
+        line-height:1.25;
+        white-space:normal;
+        overflow:hidden;
+        display:-webkit-box;
+        -webkit-line-clamp:2;
+        -webkit-box-orient:vertical;
+      }
+      #dashPanelHoldings .inst-name-cn {
+        font-size:10px;
+        font-weight:800;
+        color:rgba(232,234,240,.52);
+        margin-top:4px;
+        line-height:1.2;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+    }
+
     @media (min-width: 1800px) {
       :root { --header-h: 80px; --top-row-h: 248px; --gap: 10px; }
       .dash-title { font-size:24px; }
       .dash-left { grid-template-rows:var(--top-row-h) 1fr; }
     }
 
-    @keyframes qeBreathe { 0%,100%{opacity:.55;filter:drop-shadow(0 0 0 rgba(34,197,94,.0))} 50%{opacity:1;filter:drop-shadow(0 0 12px rgba(34,197,94,.22))} }
+    @keyframes qeBreathe { 0%,100%{opacity:.55;filter:drop-shadow(0 0 0 rgba(0,230,118,.0))} 50%{opacity:1;filter:drop-shadow(0 0 14px rgba(0,230,118,.18))} }
     .qe-breathe { animation:qeBreathe 1.6s ease-in-out infinite; }
 
   </style>
@@ -3073,7 +3374,7 @@
 </div>
 
 <header>
-  <div class="wrap">
+  <div class="wrap tv-shift">
     <div class="hd">
       <a href="#" class="logo" onclick="return false">
         <div class="logo-ico"><img src="data:image/jpeg;base64,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" alt="logo"></div>
@@ -3107,7 +3408,7 @@
 </header>
 
 <main class="dash-main">
-  <div class="wrap dash-wrap">
+  <div class="wrap dash-wrap tv-shift">
     <div class="dash-grid">
       <section class="dash-left">
         <div class="dash-top-cards">
@@ -3139,7 +3440,6 @@
               </span>
             </div>
             <div class="dash-flash-body">
-              <div class="dash-badge" id="dashFlashBadge">—</div>
               <div class="dash-flash-empty" id="dashFlashEmpty" aria-hidden="true">
                 <div class="dash-radar"></div>
                 <div class="txt">正在检查今日相关新闻...</div>
@@ -3329,13 +3629,41 @@
           <div class="announcement-update-time" id="announcementUpdateTime" style="display:none"></div>
         </div>
 
-        <div class="dash-card dash-feed">
+        <div class="dash-card dash-catalyst" id="valueCatalystCard">
           <div class="dash-card-head">
-            <span class="flex items-center gap-2">✖️ <span data-i18n="dash.feedX">XMax官方推特</span> <span class="dash-live-engaged qe-breathe"><span class="dot"></span>LIVE ENGAGED</span></span>
-            <span class="dash-card-sub" id="xFeedCount">—</span>
+            <span class="dash-catalyst-title" id="vcTitle">🏛️ 马斯克生态协同雷达</span>
+            <span class="dash-catalyst-badge qe-breathe"><span class="dot"></span><span class="txt" id="vcBadgeText">合规披露</span></span>
           </div>
-          <div class="dash-feed-body scrollbar-none" id="xFeedList">
-            <div class="news-loading" data-i18n="common.loading">加载中...</div>
+          <div class="dash-catalyst-body">
+            <div class="catalyst-top">
+              <div class="catalyst-top-label" id="vcTopLabel">🏛️ XMAX 累计融资规模与市场表现</div>
+              <div class="catalyst-top-value mono" id="muskEmpireValue">超 1.1 亿美元</div>
+              <div class="catalyst-top-sub mono" id="muskEmpireSub">资本市场支持：已历经五轮公开发行、注册直接发行及私募配售</div>
+              <div class="catalyst-cushion mono" id="xmaxSafetyCushion">52周区间表现：最低 0.907 美元至最高 8.690 美元，总股本 6360 万股</div>
+            </div>
+
+            <div class="catalyst-lock">
+              <div class="catalyst-lock-title" id="vcLockTitle">📊 核心运营模式与资金配置框架</div>
+              <div class="catalyst-lock-row">
+                <div class="lock-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="90">
+                  <div class="lock-bar-fill" style="width:90%"></div>
+                </div>
+                <div class="lock-bar-label mono" id="vcLockBarLabel">90% 精准配置</div>
+              </div>
+              <div class="catalyst-lock-note mono" id="vcLockNote">战略实施：90% 募集资金投向马斯克生态核心资产，10% 资金作为日常运营与合规保障
+合规监管：所有投资路径公开透明，严格接受 SEC 及 FINRA 的监督管理与信息披露要求</div>
+            </div>
+
+            <div class="catalyst-stream" id="catalystMarquee">
+              <div class="catalyst-item"><span class="tag live">SpaceX</span><span class="txt">🚀【SpaceX 投资总额】已通过两只合规基金完成对 SpaceX 原始股的梯次投资，累计总投资额录得 1671 万美元。</span></div>
+              <div class="catalyst-item"><span class="tag live">SpaceX</span><span class="txt">📅【SpaceX 一轮持仓】2025年9月完成对 SpaceX 的首轮投资，投资额 566 万美元，成功持有 353,772 股。</span></div>
+              <div class="catalyst-item"><span class="tag live">SpaceX</span><span class="txt">📅【SpaceX 二轮持仓】2025年10月追加对 SpaceX 的第二轮投资，投资额 560 万美元，持有 59,410 股。</span></div>
+              <div class="catalyst-item"><span class="tag live">SpaceX</span><span class="txt">📅【SpaceX 三轮持仓】2026年4月完成对 SpaceX 的第三轮增持，投资额 545 万美元，持有 258,051 股。</span></div>
+              <div class="catalyst-item"><span class="tag prc">xAI</span><span class="txt">🧠【xAI 核心资产权益】通过专项 SPV 增资方式投资 xAI，总投资额达 1688.5 万美元，穿透持有其 B系列优先股 99.9% 基金权益。</span></div>
+              <div class="catalyst-item"><span class="tag prc">机构持仓</span><span class="txt">🏦【华尔街顶级机构持仓】已获 35 家全球知名机构建仓。先锋领航持 67.79万股、贝莱德持 54.61万股、瑞银集团持 46.71万股。</span></div>
+              <div class="catalyst-item"><span class="tag prc">市场表现</span><span class="txt">📈【52周资本市场表现】随着战略聚焦马斯克生态，资本市场关注度持续提升，52周股价最高触及 8.690 美元，最高涨幅达 858%。</span></div>
+              <div class="catalyst-item"><span class="tag prc">合规披露</span><span class="txt">📊【微策略成功经验借鉴】战略路径借鉴 MicroStrategy 成功模式，通过战略型上市公司实现稀缺资产的间接持有，打造合规投资桥梁。</span></div>
+            </div>
           </div>
         </div>
       </aside>
@@ -3578,7 +3906,18 @@ let API_BASE = (() => {
   if (api) return api.replace(/\/+$/, '');
   try {
     const stored = localStorage.getItem('x_api_base');
-    if (stored) return stored.replace(/\/+$/, '');
+    if (stored) {
+      const cleaned = stored.replace(/\/+$/, '');
+      const host = String(location.hostname || '').toLowerCase();
+      const onLocalHost = /^(localhost|127\.0\.0\.1)$/.test(host);
+      if (!onLocalHost && String(location.protocol || '').toLowerCase() !== 'file:') {
+        try {
+          const h = new URL(cleaned).hostname.toLowerCase();
+          if (/^(localhost|127\.0\.0\.1)$/.test(h)) return '';
+        } catch (e) {}
+      }
+      return cleaned;
+    }
   } catch (e) {}
   if (String(location.protocol || '').toLowerCase() === 'file:') {
     return 'http://127.0.0.1:5173';
@@ -3594,6 +3933,15 @@ async function ensureApiBaseReady() {
     const v = String(u || '').replace(/\/+$/, '');
     if (!candidates.includes(v)) candidates.push(v);
   };
+  if (!/^(localhost|127\.0\.0\.1)$/.test(host) && protocol !== 'file:' && API_BASE) {
+    try {
+      const h = new URL(API_BASE).hostname.toLowerCase();
+      if (/^(localhost|127\.0\.0\.1)$/.test(h)) {
+        API_BASE = '';
+        try { localStorage.removeItem('x_api_base'); } catch (e) {}
+      }
+    } catch (e) {}
+  }
   if (API_BASE) push(API_BASE);
   if (protocol !== 'file:') push('');
   if (!host || /^(localhost|127\.0\.0\.1)$/.test(host)) {
@@ -3601,8 +3949,6 @@ async function ensureApiBaseReady() {
     push('http://localhost:5173');
     push('http://127.0.0.1:5174');
     push('http://localhost:5174');
-  } else {
-    push('http://127.0.0.1:5173');
   }
   const fetchJson = async (url, timeoutMs) => {
     const ctrl = new AbortController();
@@ -4048,6 +4394,9 @@ function applyLanguage(lang) {
   if (Array.isArray(xmaxNewsData) && xmaxNewsData.length) renderXmaxNewsCarousel(xmaxNewsCarouselIndex);
   if (typeof announcementList !== 'undefined') renderAnnouncements(announcementList);
   if (typeof loadNewsFeed === 'function') loadNewsFeed();
+  if (typeof applyValueCatalystLanguage === 'function') {
+    applyValueCatalystLanguage();
+  }
   updateKlineFullscreenBtn();
   updatePageFullscreenBtn();
   updateDashMapPinBtn();
@@ -4091,7 +4440,12 @@ function openQuoteFullscreen() {
     fs.setAttribute('aria-hidden', 'false');
     requestAnimationFrame(() => fs.classList.remove('opacity-0'));
   }
-  loadQuoteFsData();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      ensureQuoteFsChart();
+      loadQuoteFsData();
+    });
+  });
 }
 
 function closeQuoteFullscreen() {
@@ -4182,6 +4536,15 @@ function _yfFmt(v) {
 function _fmtRange(lo, hi) {
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '--';
   return `$${formatNumber(lo)} - $${formatNumber(hi)}`;
+}
+
+async function fetchYahooQuoteV7(symbol) {
+  const url = `https://r.jina.ai/https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}&_=${Date.now()}`;
+  const resp = await fetch(url, { headers: { 'Accept': 'text/plain' } });
+  const txt = await resp.text();
+  const j = _extractJsonFromJinaText(txt);
+  const res0 = (j?.quoteResponse?.result || [])[0] || null;
+  return res0;
 }
 
 async function fetchYahooChartData(symbol, range, interval) {
@@ -4325,7 +4688,7 @@ async function loadQuoteFsData() {
       const chg = Number.isFinite(regChg) ? regChg : 0;
       const sign = pct >= 0 ? '+' : '';
       cEl.textContent = `${sign}${formatNumber(chg)} (${sign}${formatNumber(pct)}%)`;
-      cEl.style.color = pct >= 0 ? '#34d399' : '#f87171';
+      cEl.style.color = pct >= 0 ? '#00E676' : '#f87171';
     }
     if (tEl) tEl.textContent = regTime ? `At close: ${regTime.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}` : '';
 
@@ -4335,13 +4698,53 @@ async function loadQuoteFsData() {
       const first = candles.find(c => Number.isFinite(c.open));
       if (first) open = Number(first.open);
     }
-    const dayLow = Number(meta.regularMarketDayLow);
-    const dayHigh = Number(meta.regularMarketDayHigh);
-    const w52l = Number(meta.fiftyTwoWeekLow);
-    const w52h = Number(meta.fiftyTwoWeekHigh);
-    const volNow = Number(meta.regularMarketVolume);
-    const avgVol = Number(meta.averageDailyVolume3Month);
-    const mcap = Number(meta.marketCap);
+    let dayLow = Number(meta.regularMarketDayLow);
+    let dayHigh = Number(meta.regularMarketDayHigh);
+    let w52l = Number(meta.fiftyTwoWeekLow);
+    let w52h = Number(meta.fiftyTwoWeekHigh);
+    let volNow = Number(meta.regularMarketVolume);
+    let avgVol = Number(meta.averageDailyVolume3Month);
+    let mcap = Number(meta.marketCap);
+
+    const needExtra = (
+      !Number.isFinite(open) ||
+      !Number.isFinite(dayLow) ||
+      !Number.isFinite(dayHigh) ||
+      !Number.isFinite(w52l) ||
+      !Number.isFinite(w52h) ||
+      !Number.isFinite(volNow) ||
+      !Number.isFinite(avgVol) ||
+      !Number.isFinite(mcap)
+    );
+    if (needExtra) {
+      try {
+        const q = await fetchYahooQuoteV7(symbol);
+        if (q) {
+          if (!Number.isFinite(open)) open = Number(q.regularMarketOpen);
+          if (!Number.isFinite(dayLow)) dayLow = Number(q.regularMarketDayLow);
+          if (!Number.isFinite(dayHigh)) dayHigh = Number(q.regularMarketDayHigh);
+          if (!Number.isFinite(w52l)) w52l = Number(q.fiftyTwoWeekLow);
+          if (!Number.isFinite(w52h)) w52h = Number(q.fiftyTwoWeekHigh);
+          if (!Number.isFinite(volNow)) volNow = Number(q.regularMarketVolume);
+          if (!Number.isFinite(avgVol)) avgVol = Number(q.averageDailyVolume3Month);
+          if (!Number.isFinite(mcap)) mcap = Number(q.marketCap);
+        }
+      } catch (e) {}
+      if (!Number.isFinite(open) || !Number.isFinite(dayLow) || !Number.isFinite(dayHigh) || !Number.isFinite(volNow) || !Number.isFinite(mcap)) {
+        try {
+          const r = await _fetchLocalApiText(`${API_BASE}/api/stock?ticker=${encodeURIComponent(symbol)}&_=${Date.now()}`, 9000, { 'Accept': 'application/json' });
+          if (r.ok) {
+            const j = JSON.parse(r.text || '{}');
+            const d = j?.data || {};
+            if (!Number.isFinite(open)) open = Number(d.open);
+            if (!Number.isFinite(dayLow)) dayLow = Number(d.low);
+            if (!Number.isFinite(dayHigh)) dayHigh = Number(d.high);
+            if (!Number.isFinite(volNow)) volNow = Number(d.volume);
+            if (!Number.isFinite(mcap)) mcap = Number(d.market_cap);
+          }
+        } catch (e) {}
+      }
+    }
     const totalVol = Number.isFinite(volNow) && volNow > 0 ? volNow : (vol || []).reduce((s, d) => s + (Number(d.value) || 0), 0);
     let vwap = NaN;
     if (candles && candles.length) {
@@ -4473,6 +4876,9 @@ async function loadQuoteFsData() {
       } catch(e) {}
       quoteFsChart.timeScale().fitContent();
     }
+    try {
+      if (quoteFsChart) quoteFsChart.applyOptions({ width: document.getElementById('quoteFsChart')?.clientWidth || 0, height: document.getElementById('quoteFsChart')?.clientHeight || 0 });
+    } catch (e) {}
   } catch(e) {
     const tEl = document.getElementById('qfAt');
     if (tEl) tEl.textContent = 'Load failed';
@@ -4550,6 +4956,8 @@ async function loadInstData() {
     hideInstMapLoading();
     drawInstMap();
     renderDashHoldings();
+    pulseDashCard(document.querySelector('.dash-card.dash-instmini'));
+    pulseDashCard(document.querySelector('.dash-card.dash-map'));
   } catch(e) {
     console.error('加载机构持股数据失败:', e);
     if (loading) loading.style.display = 'none';
@@ -4691,6 +5099,7 @@ function renderDashHoldings(filter) {
   const empty = document.getElementById('dashInstTableEmpty');
   if (!tbody || !tfoot) return;
   if (!instData || !instData.institutions) return;
+  const isMobile = !!(window.matchMedia && window.matchMedia('(max-width: 860px)').matches);
   const wrap = document.querySelector('#dashPanelHoldings .inst-table-wrap');
   stopAutoScrollLoop(wrap);
   let list = instData.institutions;
@@ -4733,9 +5142,13 @@ function renderDashHoldings(filter) {
     const valueText = item.value > 0 ? '$' + formatCurrency(item.value) : '--';
     const dateText = escHtml(item.date || '--');
 
+    const nameEnHtml = isMobile
+      ? `<div class="inst-name-en">${escHtml(item.name || '--')}</div><div class="inst-name-cn">${escHtml(nameCn)}</div>`
+      : escHtml(item.name || '--');
+
     html += `<tr class="inst-row-enter" style="animation-delay:${rowDelay}ms">
       <td class="idx">${idx + 1}</td>
-      <td class="name-en" title="${escHtml(item.name || '')}">${escHtml(item.name || '--')}</td>
+      <td class="name-en" title="${escHtml(item.name || '')}">${nameEnHtml}</td>
       <td class="name-cn">${escHtml(nameCn)}</td>
       <td class="shares">${wrapAnimated(sharesText, rowDelay + 60)}</td>
       <td class="change ${changeClass}">${wrapAnimated(changeText, rowDelay + 90)}</td>
@@ -5386,7 +5799,7 @@ function buildDashKminiPages(snapshot) {
   const turnover = toMetricNumber(s.turnover);
   const week52Low = toMetricNumber(s.week52Low);
   const week52High = toMetricNumber(s.week52High);
-  const pctColor = Number.isFinite(changePct) ? (changePct >= 0 ? '#34d399' : '#f87171') : '';
+  const pctColor = Number.isFinite(changePct) ? (changePct >= 0 ? '#00E676' : '#f87171') : '';
   return [
     [
       { key:'price', label:t('stock.price'), value:price, numeric:Number.isFinite(price), formatter:v => '$' + formatNumber(v), duration:820 },
@@ -5588,7 +6001,7 @@ function updateStockDisplay(price, change, changePercent, open, high, low, preCl
   if (dkChgPct) {
     const pct = Number.isFinite(safeChangePercent) ? safeChangePercent : 0;
     dkChgPct.textContent = (pct >= 0 ? '+' : '') + formatNumber(pct) + '%';
-    dkChgPct.style.color = pct >= 0 ? '#34d399' : '#f87171';
+    dkChgPct.style.color = pct >= 0 ? '#00E676' : '#f87171';
   }
   if (dkDayRange) dkDayRange.textContent = `$${formatNumber(safeLow)} - $${formatNumber(safeHigh)}`;
   const w52l = safeWeek52Low;
@@ -5755,6 +6168,7 @@ async function fetchStockData(loadKlineOnInit = false) {
         headerChange.className = 'chg ' + (data.change >= 0 ? 'up' : 'down');
         headerChange.textContent = (data.change >= 0 ? '+' : '') + formatNumber(data.change_percent) + '%';
       }
+      pulseDashCard(document.querySelector('.dash-card.dash-kmini'));
     } else {
       const coreUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d&includePrePost=true`;
       const url = `https://r.jina.ai/${coreUrl}&_=${Date.now()}`;
@@ -5898,7 +6312,7 @@ function setKlineStats(prefix, d) {
   if (chgEl) {
     const pct = d.pct_change || 0;
     chgEl.textContent = (pct >= 0 ? '+' : '') + formatNumber(pct) + '%';
-    chgEl.style.color = pct >= 0 ? '#34d399' : '#f87171';
+    chgEl.style.color = pct >= 0 ? '#00E676' : '#f87171';
   }
 }
 
@@ -6061,7 +6475,7 @@ async function loadDashKmini(periodKey = '1D') {
     if (dkPrice) dkPrice.textContent = Number.isFinite(price) ? ('$' + formatNumber(price)) : '--';
     if (dkChgPct) {
       dkChgPct.textContent = (chgPct >= 0 ? '+' : '') + formatNumber(chgPct) + '%';
-      dkChgPct.style.color = chgPct >= 0 ? '#34d399' : '#f87171';
+      dkChgPct.style.color = chgPct >= 0 ? '#00E676' : '#f87171';
     }
     if (dkDayRange) dkDayRange.textContent = (Number.isFinite(low) && Number.isFinite(high)) ? (`$${formatNumber(low)} - $${formatNumber(high)}`) : '--';
     if (dkWeek52) dkWeek52.textContent = (Number.isFinite(w52l) && Number.isFinite(w52h)) ? (`$${formatNumber(w52l)} - $${formatNumber(w52h)}`) : '--';
@@ -6090,7 +6504,7 @@ async function loadDashKmini(periodKey = '1D') {
     if (dkPrice && Number.isFinite(price)) dkPrice.textContent = '$' + formatNumber(price);
     if (dkChgPct) {
       dkChgPct.textContent = (chgPct >= 0 ? '+' : '') + formatNumber(chgPct) + '%';
-      dkChgPct.style.color = chgPct >= 0 ? '#34d399' : '#f87171';
+      dkChgPct.style.color = chgPct >= 0 ? '#00E676' : '#f87171';
     }
     if (dkDayRange) dkDayRange.textContent = (Number.isFinite(low) && Number.isFinite(high)) ? (`$${formatNumber(low)} - $${formatNumber(high)}`) : '--';
     if (dkWeek52) dkWeek52.textContent = (Number.isFinite(w52l) && Number.isFinite(w52h)) ? (`$${formatNumber(w52l)} - $${formatNumber(w52h)}`) : '--';
@@ -6121,11 +6535,11 @@ function createTvChart(containerEl) {
     crosshair: { mode: 1 },
   });
   const seriesOptions = {
-    upColor: '#34d399',
+    upColor: '#00E676',
     downColor: '#f87171',
-    borderUpColor: '#34d399',
+    borderUpColor: '#00E676',
     borderDownColor: '#f87171',
-    wickUpColor: '#34d399',
+    wickUpColor: '#00E676',
     wickDownColor: '#f87171',
   };
   let series = null;
@@ -6195,6 +6609,12 @@ function initKlinePage() {
   const period = normalizeKlinePeriod(btn?.dataset?.period || '1D');
   const limit = btn?.dataset?.limit ? parseInt(btn.dataset.limit, 10) : 365;
   loadKlinePage(period, limit, btn);
+  try {
+    setTimeout(() => {
+      const chart = KLINE_TV.page?.chart;
+      if (chart) chart.timeScale().fitContent();
+    }, 0);
+  } catch (e) {}
 }
 
 function bindKlineFullscreen() {
@@ -6306,6 +6726,7 @@ async function loadKlinePage(period, limit, btnEl) {
   const updateEl = document.getElementById('klinePageUpdate');
   if (updateEl) updateEl.textContent = t('common.updating') + ' · ' + p;
   setKlineLoading('klinePageLoading', true);
+  try { triggerKlineEntrance(); } catch (e) {}
   try {
     const ctrl = ensureKlineTv('page');
     if (!ctrl) throw new Error('图表容器缺失');
@@ -6453,7 +6874,7 @@ function drawKline(canvas, data, isLarge, statsPrefix = 'kmi', period = 'daily')
     const d = viewData[i];
     const x = padL + gap + i * (barW + gap);
     const isUp = d.close >= d.open;
-    const color = isUp ? '#34d399' : '#f87171';
+    const color = isUp ? '#00E676' : '#f87171';
 
     // 影线
     const highY = padTop + (1 - (d.high - minP) / priceRange) * chartH;
@@ -6757,7 +7178,7 @@ function initStockTicker() {
 const ANNOUNCEMENT_CONFIG = {
   symbol: 'XMAX',
   company: 'XMax',
-  updateInterval: 28800000, // 8小时检查一次
+  updateInterval: 60 * 60 * 1000, // 1小时（无需刷新网页也至少每小时更新一次）
   maxItems: 10  // 最多抓取10条
 };
 
@@ -6796,18 +7217,53 @@ function loadAnnouncementCache() {
 }
 
 function formatTimeAgo(timeStr) {
-  const now = new Date();
-  const time = new Date(timeStr);
-  const diff = now - time;
+  const raw = String(timeStr || '').trim();
+  const ms = Date.parse(raw);
+  if (!Number.isFinite(ms)) return raw ? (raw.split('T')[0] || raw.split(' ')[0] || raw) : '';
+  const diff = Math.max(0, Date.now() - ms);
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
+  const justNow = currentLang === 'zh' ? '刚刚' : 'now';
+  if (minutes < 1) return justNow;
+  if (minutes < 60) return currentLang === 'zh' ? `${minutes}m前` : `${minutes}m ago`;
+  if (hours < 24) return currentLang === 'zh' ? `${hours}h前` : `${hours}h ago`;
+  if (days < 30) return currentLang === 'zh' ? `${days}d前` : `${days}d ago`;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 
-  if (minutes < 1) return t('announcement.timeAgo.justNow');
-  if (minutes < 60) return t('announcement.timeAgo.minutes', { n: minutes });
-  if (hours < 24) return t('announcement.timeAgo.hours', { n: hours });
-  if (days < 30) return t('announcement.timeAgo.days', { n: days });
-  return timeStr.split(' ')[0];
+const DASH_CARD_PULSE_MS = 1500;
+function pulseDashCard(el) {
+  const target = el && el.classList && el.classList.contains('dash-card')
+    ? el
+    : (el && el.closest ? el.closest('.dash-card') : null);
+  if (!target) return;
+  target.classList.remove('pulse-border');
+  target.classList.remove('pulse-pop');
+  void target.offsetWidth;
+  target.classList.add('pulse-border');
+  target.classList.add('pulse-pop');
+  setTimeout(() => target.classList.remove('pulse-border'), DASH_CARD_PULSE_MS);
+  setTimeout(() => target.classList.remove('pulse-pop'), DASH_CARD_PULSE_MS);
+}
+
+function startBurnInProtection() {
+  const root = document.documentElement;
+  const steps = [
+    [0, 0], [1, 0], [1, 1], [0, 1],
+    [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1],
+  ];
+  let i = 0;
+  const apply = () => {
+    const s = steps[i] || [0, 0];
+    root.style.setProperty('--burnin-x', `${s[0]}px`);
+    root.style.setProperty('--burnin-y', `${s[1]}px`);
+  };
+  apply();
+  setInterval(() => {
+    i = (i + 1) % steps.length;
+    apply();
+  }, 5 * 60 * 1000);
 }
 
 function renderAnnouncements(announcements, hasNew = false) {
@@ -6950,6 +7406,7 @@ async function fetchAnnouncements() {
       annPage = 1;
       const hasNew = announcements.some(a => !seenAnnouncementIds.has(a.id));
       renderAnnouncements(announcements, hasNew);
+      pulseDashCard(listEl && listEl.closest ? listEl.closest('.dash-card') : null);
       saveAnnouncementCache(announcements);
       if (updateTimeEl) {
         const now = new Date();
@@ -7009,6 +7466,7 @@ async function fetchAnnouncements() {
     annPage = 1;
     const hasNew = announcementList.some(a => !seenAnnouncementIds.has(a.id));
     renderAnnouncements(announcementList, hasNew);
+    pulseDashCard(listEl && listEl.closest ? listEl.closest('.dash-card') : null);
     saveAnnouncementCache(announcementList);
 
     if (updateTimeEl) {
@@ -7575,7 +8033,7 @@ function getLocalizedSummary(a) {
 // ===== 新闻板块 =====
 let newsFeedData = null;
 let newsTimer = null;
-const NEWS_REFRESH_MS = 24 * 60 * 60 * 1000; // 24小时
+const NEWS_REFRESH_MS = 60 * 60 * 1000; // 1小时（无需刷新网页也至少每小时更新一次）
 let newsRefreshTick = 0;
 let xmaxNewsData = [];
 let muskNewsData = [];
@@ -7600,7 +8058,7 @@ const XMAX_NEWS_CACHE_KEY = 'xwin_xmax_news_cache_v3';
 const MUSK_NEWS_CACHE_KEY = 'xwin_musk_news_cache_v3';
 const MUSK_NEWS_MIN_COUNT = 20;
 const X_FEED_MIN_COUNT = 20;
-const XMAX_NEWS_CHECK_MS = 24 * 60 * 60 * 1000;
+const XMAX_NEWS_CHECK_MS = 60 * 60 * 1000;
 let xmaxNewsLastCheckedTs = 0;
 const XMAX_NEWS_SEED_ITEMS = [
   {
@@ -8345,6 +8803,7 @@ async function loadXmaxNewsFlash() {
       xmaxNewsData = normalizedItems;
       saveXmaxNewsCache(normalizedItems, now, now);
       showHeadlineState(normalizedItems);
+      pulseDashCard(card);
       return;
     }
 
@@ -8928,6 +9387,7 @@ async function loadXFeed(feedKey, opts) {
     saveXFeedCache(key, hydrated);
     if (countEl) countEl.textContent = t('news.count', { n: hydrated.length });
     if (key === currentXFeed) renderXFeed(hydrated);
+    pulseDashCard(listEl);
   } catch(e) {
     console.error('推特加载失败:', e);
     if (reqId !== xFeedReqId) return;
@@ -8971,6 +9431,419 @@ function renderXFeed(tweets) {
     </a>`;
   }).join('');
   applyAutoScrollLoop(listEl, { speed: 8, pauseOnHover: false });
+}
+
+const VC_INSTITUTIONAL_COST = 7.347;
+const VC_TSLA_CAP_POLL_MS = 5 * 60 * 1000;
+const VC_CATALYST_POLL_MS = 60 * 60 * 1000;
+const VC_BASE_TOTAL_DEFAULT_USD = 1800075000000;
+const VC_TYPEWRITER_FIRST_DELAY_MS = 12 * 1000;
+const VC_TYPEWRITER_MIN_GAP_MS = 7 * 60 * 1000;
+const VC_TYPEWRITER_MAX_GAP_MS = 11 * 60 * 1000;
+const VC_PDF_FACTS_ZH = [
+  '🚀【SpaceX 投资总额】已通过两只合规基金完成对 SpaceX 原始股的梯次投资，累计总投资额录得 1671 万美元。',
+  '📅【SpaceX 一轮持仓】2025年9月完成对 SpaceX 的首轮投资，投资额 566 万美元，成功持有 353,772 股。',
+  '📅【SpaceX 二轮持仓】2025年10月追加对 SpaceX 的第二轮投资，投资额 560 万美元，持有 59,410 股。',
+  '📅【SpaceX 三轮持仓】2026年4月完成对 SpaceX 的第三轮增持，投资额 545 万美元，持有 258,051 股。',
+  '🧠【xAI 核心资产权益】通过专项 SPV 增资方式投资 xAI，总投资额达 1688.5 万美元，穿透持有其 B系列优先股 99.9% 基金权益。',
+  '🏦【华尔街顶级机构持仓】已获 35 家全球知名机构建仓。先锋领航持 67.79万股、贝莱德持 54.61万股、瑞银集团持 46.71万股。',
+  '📈【52周资本市场表现】随着战略聚焦马斯克生态，资本市场关注度持续提升，52周股价最高触及 8.690 美元，最高涨幅达 858%。',
+  '📊【微策略成功经验借鉴】战略路径借鉴 MicroStrategy 成功模式，通过战略型上市公司实现稀缺资产的间接持有，打造合规投资桥梁。',
+];
+let vcPollTimer = 0;
+let vcCatalystTimer = 0;
+let vcTypeTimer = 0;
+let vcTypingRun = 0;
+let vcPrevEmpireValue = NaN;
+let vcPrevCushionPct = NaN;
+let vcUnloadBound = false;
+let vcPrevTslaCap = NaN;
+let vcBaseTotalUsd = VC_BASE_TOTAL_DEFAULT_USD;
+let vcCatalystUpdated = '';
+let vcFastRetryTimer = 0;
+let vcLastCatalystFetchMs = 0;
+let vcLastTslaFetchMs = 0;
+
+function destroyValueCatalystMonitor() {
+  if (vcPollTimer) clearInterval(vcPollTimer);
+  if (vcCatalystTimer) clearInterval(vcCatalystTimer);
+  if (vcFastRetryTimer) clearTimeout(vcFastRetryTimer);
+  if (vcTypeTimer) clearTimeout(vcTypeTimer);
+  vcPollTimer = 0;
+  vcCatalystTimer = 0;
+  vcFastRetryTimer = 0;
+  vcTypeTimer = 0;
+  vcTypingRun += 1;
+  vcPrevEmpireValue = NaN;
+  vcPrevCushionPct = NaN;
+  vcPrevTslaCap = NaN;
+  vcBaseTotalUsd = VC_BASE_TOTAL_DEFAULT_USD;
+  vcCatalystUpdated = '';
+  const stream = document.getElementById('catalystMarquee');
+  if (stream) stopAutoScrollLoop(stream);
+  vcLastCatalystFetchMs = 0;
+  vcLastTslaFetchMs = 0;
+}
+
+function _vcCard() {
+  return document.getElementById('valueCatalystCard');
+}
+
+function _vcSetAll(selector, updater) {
+  const card = _vcCard();
+  if (!card) return;
+  card.querySelectorAll(selector).forEach((el) => {
+    try { updater(el); } catch (e) {}
+  });
+}
+
+function _vcPad2(n) {
+  return String(Math.max(0, Math.floor(n))).padStart(2, '0');
+}
+
+function _vcBuildPdfFactsHtml() {
+  const tags = ['SpaceX', 'SpaceX', 'SpaceX', 'SpaceX', 'xAI', '机构持仓', '市场表现', '合规披露'];
+  const tagCls = ['live', 'live', 'live', 'live', 'prc', 'prc', 'prc', 'prc'];
+  return VC_PDF_FACTS_ZH.map((txt, i) => {
+    const tag = tags[i] || '披露';
+    const cls = tagCls[i] || 'prc';
+    return `<div class="catalyst-item"><span class="tag ${escHtml(cls)}">${escHtml(tag)}</span><span class="txt">${escHtml(txt)}</span></div>`;
+  }).join('');
+}
+
+function _vcRandInt(min, max) {
+  const a = Math.floor(Number(min) || 0);
+  const b = Math.floor(Number(max) || 0);
+  if (b <= a) return a;
+  return a + Math.floor(Math.random() * (b - a + 1));
+}
+
+function _vcTypewriteText(el, text, runId, opts) {
+  if (!el) return;
+  const content = String(text || '');
+  const delay = Number(opts?.delay || 0);
+  const minStep = Number(opts?.minStep || 14);
+  const maxDuration = Number(opts?.maxDuration || 980);
+  const chars = Array.from(content);
+  if (!chars.length) {
+    el.textContent = '';
+    el.classList.remove('typing');
+    return;
+  }
+  const stepMs = Math.max(minStep, Math.floor(maxDuration / chars.length));
+  el.textContent = '';
+  el.classList.add('typing');
+  chars.forEach((ch, idx) => {
+    setTimeout(() => {
+      if (runId !== vcTypingRun) return;
+      el.textContent += ch;
+      if (idx === chars.length - 1) el.classList.remove('typing');
+    }, delay + idx * stepMs);
+  });
+}
+
+function _vcRunTopTypewriter() {
+  const s1El = document.getElementById('muskEmpireSub');
+  const s2El = document.getElementById('xmaxSafetyCushion');
+  if (!s1El || !s2El) return;
+  const t1 = s1El.dataset.fullText || s1El.textContent || '';
+  const t2 = s2El.dataset.fullText || s2El.textContent || '';
+  s1El.dataset.fullText = t1;
+  s2El.dataset.fullText = t2;
+  vcTypingRun += 1;
+  const runId = vcTypingRun;
+  s1El.classList.remove('typing');
+  s2El.classList.remove('typing');
+  s1El.textContent = '';
+  s2El.textContent = '';
+  _vcTypewriteText(s1El, t1, runId, { delay: 0, minStep: 14, maxDuration: 860 });
+  _vcTypewriteText(s2El, t2, runId, {
+    delay: typedDelayFromText(t1, 260, 980),
+    minStep: 12,
+    maxDuration: 920,
+  });
+}
+
+function _vcScheduleTopTypewriter(first) {
+  if (vcTypeTimer) clearTimeout(vcTypeTimer);
+  const wait = first ? VC_TYPEWRITER_FIRST_DELAY_MS : _vcRandInt(VC_TYPEWRITER_MIN_GAP_MS, VC_TYPEWRITER_MAX_GAP_MS);
+  vcTypeTimer = setTimeout(() => {
+    _vcRunTopTypewriter();
+    _vcScheduleTopTypewriter(false);
+  }, wait);
+}
+
+function applyValueCatalystLanguage() {
+  const card = _vcCard();
+  if (!card) return;
+  const zh = true;
+  const titleEl = document.getElementById('vcTitle');
+  const badgeTextEl = document.getElementById('vcBadgeText');
+  const topLabelEl = document.getElementById('vcTopLabel');
+  const lockTitleEl = document.getElementById('vcLockTitle');
+  const lockBarLabelEl = document.getElementById('vcLockBarLabel');
+  const lockNoteEl = document.getElementById('vcLockNote');
+  if (titleEl) titleEl.textContent = '🏛️ 马斯克生态协同雷达';
+  if (badgeTextEl) badgeTextEl.textContent = '合规披露';
+  if (topLabelEl) topLabelEl.textContent = '🏛️ XMAX 累计融资规模与市场表现';
+  const vEl = document.getElementById('muskEmpireValue');
+  const s1El = document.getElementById('muskEmpireSub');
+  const s2El = document.getElementById('xmaxSafetyCushion');
+  if (vEl) vEl.textContent = '超 1.1 亿美元';
+  if (s1El) s1El.textContent = '资本市场支持：已历经五轮公开发行、注册直接发行及私募配售';
+  if (s2El) s2El.textContent = '52周区间表现：最低 0.907 美元至最高 8.690 美元，总股本 6360 万股';
+
+  if (lockTitleEl) lockTitleEl.textContent = '📊 核心运营模式与资金配置框架';
+  if (lockBarLabelEl) lockBarLabelEl.textContent = '90% 精准配置';
+  const fill = card.querySelector('.lock-bar-fill');
+  if (fill) fill.style.width = '90%';
+  const bar = card.querySelector('.lock-bar[role="progressbar"]');
+  if (bar) bar.setAttribute('aria-valuenow', '90');
+  if (lockNoteEl) lockNoteEl.textContent =
+    '战略实施：90% 募集资金投向马斯克生态核心资产，10% 资金作为日常运营与合规保障\n合规监管：所有投资路径公开透明，严格接受 SEC 及 FINRA 的监督管理与信息披露要求';
+
+  const stream = document.getElementById('catalystMarquee');
+  if (stream) stream.innerHTML = _vcBuildPdfFactsHtml();
+}
+
+function _vcCountdownStr(targetMs) {
+  const now = Date.now();
+  let diff = Math.max(0, Number(targetMs) || 0) - now;
+  const s = Math.floor(diff / 1000);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = Math.floor(s % 60);
+  if (days > 0) return `${days}天${hours}小时${mins}分${secs}秒`;
+  return `${_vcPad2(hours)}:${_vcPad2(mins)}:${_vcPad2(secs)}`;
+}
+
+function _vcRenderSpaceXLine() {
+  const zh = currentLang === 'zh';
+  const name = vcNextLaunchName || (zh ? '星舰' : 'Starship');
+  const text = vcNextLaunchMs
+    ? (zh
+      ? `🚀【SpaceX 实时】下一次 ${name} 发射：倒计时 ${_vcCountdownStr(vcNextLaunchMs)}（XMAX 中间件已就绪）`
+      : `🚀 [SpaceX Live] Next ${name} Launch: T-${_vcCountdownStr(vcNextLaunchMs)} (XMAX Middleware Fully Prepped)`)
+    : (zh
+      ? '🚀【SpaceX 实时】下一次星舰发射：倒计时 —（XMAX 中间件已就绪）'
+      : '🚀 [SpaceX Live] Next Starship Launch: T-— (XMAX Middleware Fully Prepped)');
+  _vcSetAll('[data-role="spacex-live"] .txt', (el) => { el.textContent = text; });
+}
+
+function _vcShortSource(item) {
+  const s = String(item?.source || '').trim();
+  if (s) return s;
+  const u = String(item?.url || '').trim();
+  try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+}
+
+function _vcUsd(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '$0';
+  return '$' + formatMarketCap(v);
+}
+
+function _vcGetNumStorage(key) {
+  try {
+    const v = Number(localStorage.getItem(String(key || '')) || '');
+    if (Number.isFinite(v) && v > 0) return v;
+  } catch (e) {}
+  return NaN;
+}
+
+function _vcSetStorage(key, val) {
+  try { localStorage.setItem(String(key || ''), String(val)); } catch (e) {}
+}
+
+function _vcResetMarqueeWithHtml(html) {
+  const stream = document.getElementById('catalystMarquee');
+  if (!stream) return;
+  if (stream._marqueeCleanup) {
+    try { stream._marqueeCleanup(); } catch (e) {}
+  }
+  stream.innerHTML = String(html || '');
+  applyMarqueeY(stream, { pxPerSec: 11, pauseOnHover: true, idleMs: 10000, force: true });
+}
+
+function _vcApplyCatalyst(cfg) {
+  const d = cfg || {};
+  const baseTotal = Number(d.base_total_usd);
+  const updated = String(d.updated || '').trim();
+  if (Number.isFinite(baseTotal) && baseTotal > 0) {
+    vcBaseTotalUsd = baseTotal;
+    _vcSetStorage('vcBaseTotalUsd', baseTotal);
+  }
+  if (updated) {
+    vcCatalystUpdated = updated;
+    _vcSetStorage('vcCatalystUpdated', updated);
+  }
+
+  const cap = d.capital_structure || {};
+  const lockBarLabelEl = document.getElementById('vcLockBarLabel');
+  const lockNoteEl = document.getElementById('vcLockNote');
+  if (lockBarLabelEl) lockBarLabelEl.textContent = currentLang === 'zh' ? (cap.locked_label_zh || '100% Locked') : (cap.locked_label_en || '100% Locked');
+  if (lockNoteEl) lockNoteEl.textContent = currentLang === 'zh' ? (cap.structure_text_zh || lockNoteEl.textContent) : (cap.structure_text_en || lockNoteEl.textContent);
+
+  const facts = Array.isArray(d.catalyst_facts) ? d.catalyst_facts : [];
+  const tagClassByKey = { spacex: 'live', tesla: 'live', neuralink: 'prc', boring: 'prc' };
+  const tagRoleByKey = { spacex: 'tag-spacex', tesla: 'tag-tesla', neuralink: 'tag-neuralink', boring: 'tag-boring' };
+  const items = facts
+    .filter(x => x && x.key && (x.text_zh || x.text_en))
+    .slice(0, 4)
+    .map(x => {
+      const key = String(x.key);
+      const cls = tagClassByKey[key] || 'live';
+      const tagRole = tagRoleByKey[key] || '';
+      const label = currentLang === 'zh' ? String(x.label_zh || '') : String(x.label_en || '');
+      const text = currentLang === 'zh' ? String(x.text_zh || '') : String(x.text_en || '');
+      return `<div class="catalyst-item" data-role="fact-${escHtml(key)}"><span class="tag ${escHtml(cls)}" ${tagRole ? `data-role="${escHtml(tagRole)}"` : ''}>${escHtml(label)}</span><span class="txt">${escHtml(text)}</span></div>`;
+    });
+  if (items.length) {
+    const html = items.join('');
+    _vcSetStorage('vcCatalystHtml', html);
+    _vcResetMarqueeWithHtml(html);
+  }
+
+  const topLabelEl = document.getElementById('vcTopLabel');
+  if (topLabelEl) {
+    const baseTxt = Number.isFinite(vcBaseTotalUsd) && vcBaseTotalUsd > 0 ? _vcUsd(vcBaseTotalUsd) : '$0';
+    topLabelEl.textContent = currentLang === 'zh'
+      ? `总估值 = TSLA 市值 + 私有底座（${baseTxt}）`
+      : `Total = TSLA market cap + base (${baseTxt})`;
+  }
+}
+
+async function _vcFetchCatalystCfg() {
+  try {
+    const r = await _fetchLocalApiText(`/api/musk-catalyst?_=${Date.now()}`, 14000, { 'Accept': 'application/json' });
+    if (!r.ok) return false;
+    const j = JSON.parse(r.text || '{}');
+    const d = j && j.success === true ? (j.data || null) : null;
+    if (!d) return false;
+    const prev = vcCatalystUpdated;
+    _vcApplyCatalyst(d);
+    if (vcCatalystUpdated && vcCatalystUpdated !== prev) pulseDashCard(_vcCard());
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function _vcFetchTslaCap() {
+  try {
+    const r = await _fetchLocalApiText(`/api/stock?ticker=TSLA&_=${Date.now()}`, 9000, { 'Accept': 'application/json' });
+    if (!r.ok) return false;
+    const j = JSON.parse(r.text || '{}');
+    const cap = Number(j?.data?.market_cap);
+    if (!(Number.isFinite(cap) && cap > 0)) return false;
+    const prev = vcPrevTslaCap;
+    vcPrevTslaCap = cap;
+    _vcSetStorage('vcPrevTslaCap', cap);
+    const rel = (Number.isFinite(prev) && prev > 0) ? (Math.abs(cap - prev) / prev) : 1;
+    if (!Number.isFinite(prev) || rel >= 0.001) pulseDashCard(_vcCard());
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function _vcRenderTotalAndSub() {
+  const empireEl = document.getElementById('muskEmpireValue');
+  const subEl = document.getElementById('muskEmpireSub');
+  const base = Number.isFinite(vcBaseTotalUsd) && vcBaseTotalUsd > 0 ? vcBaseTotalUsd : _vcGetNumStorage('vcBaseTotalUsd');
+  if (Number.isFinite(base) && base > 0) vcBaseTotalUsd = base;
+  const tsla = Number.isFinite(vcPrevTslaCap) && vcPrevTslaCap > 0 ? vcPrevTslaCap : _vcGetNumStorage('vcPrevTslaCap');
+  if (Number.isFinite(tsla) && tsla > 0) vcPrevTslaCap = tsla;
+  const total = (Number.isFinite(vcBaseTotalUsd) ? vcBaseTotalUsd : 0) + (Number.isFinite(vcPrevTslaCap) ? vcPrevTslaCap : 0);
+  if (empireEl) {
+    const prev = vcPrevEmpireValue;
+    animateElementNumber(empireEl, prev, total, 520, v => _vcUsd(Number(v)));
+    vcPrevEmpireValue = total;
+    _vcSetStorage('vcPrevEmpireValue', total);
+  }
+  if (subEl) {
+    const sTsla = Number.isFinite(vcPrevTslaCap) && vcPrevTslaCap > 0 ? _vcUsd(vcPrevTslaCap) : '$0';
+    const sBase = Number.isFinite(vcBaseTotalUsd) && vcBaseTotalUsd > 0 ? _vcUsd(vcBaseTotalUsd) : '$0';
+    subEl.textContent = currentLang === 'zh'
+      ? `TSLA 市值：${sTsla} · 私有底座：${sBase}`
+      : `TSLA: ${sTsla} · Base: ${sBase}`;
+  }
+}
+
+function _vcRenderCushion() {
+  const cushionEl = document.getElementById('xmaxSafetyCushion');
+  if (!cushionEl) return;
+  const zh = currentLang === 'zh';
+  const px = Number.isFinite(Number(stockCurrentPrice)) ? Number(stockCurrentPrice) : NaN;
+  if (Number.isFinite(px) && px > 0) {
+    const pct = ((px - VC_INSTITUTIONAL_COST) / VC_INSTITUTIONAL_COST) * 100;
+    const cls = pct >= 0 ? 'up' : 'down';
+    const sign = pct >= 0 ? '+' : '';
+    cushionEl.innerHTML = zh
+      ? `现价 vs 机构成本（$${VC_INSTITUTIONAL_COST.toFixed(3)}）：<span class="${cls}">${sign}${pct.toFixed(1)}%</span>`
+      : `Price vs Institutional Cost ($${VC_INSTITUTIONAL_COST.toFixed(3)}): <span class="${cls}">${sign}${pct.toFixed(1)}%</span>`;
+    vcPrevCushionPct = pct;
+    return;
+  }
+  if (Number.isFinite(vcPrevCushionPct)) {
+    const pct = vcPrevCushionPct;
+    const cls = pct >= 0 ? 'up' : 'down';
+    const sign = pct >= 0 ? '+' : '';
+    cushionEl.innerHTML = zh
+      ? `现价 vs 机构成本（$${VC_INSTITUTIONAL_COST.toFixed(3)}）：<span class="${cls}">${sign}${pct.toFixed(1)}%</span>`
+      : `Price vs Institutional Cost ($${VC_INSTITUTIONAL_COST.toFixed(3)}): <span class="${cls}">${sign}${pct.toFixed(1)}%</span>`;
+    return;
+  }
+  cushionEl.textContent = zh
+    ? `现价 vs 机构成本（$${VC_INSTITUTIONAL_COST.toFixed(3)}）：0.0%`
+    : `Price vs Institutional Cost ($${VC_INSTITUTIONAL_COST.toFixed(3)}): 0.0%`;
+}
+
+async function _vcPollTopPanel() {
+  const now = Date.now();
+  const needCfg = !vcLastCatalystFetchMs || (now - vcLastCatalystFetchMs >= VC_CATALYST_POLL_MS);
+  const needTsla = !vcLastTslaFetchMs || (now - vcLastTslaFetchMs >= VC_TSLA_CAP_POLL_MS);
+  if (needCfg) {
+    vcLastCatalystFetchMs = now;
+    await _vcFetchCatalystCfg();
+  }
+  if (needTsla) {
+    vcLastTslaFetchMs = now;
+    await _vcFetchTslaCap();
+  }
+  _vcRenderTotalAndSub();
+  _vcRenderCushion();
+  if (!vcFastRetryTimer && (!(Number.isFinite(vcBaseTotalUsd) && vcBaseTotalUsd > 0) || !(Number.isFinite(vcPrevTslaCap) && vcPrevTslaCap > 0))) {
+    vcFastRetryTimer = setTimeout(() => {
+      vcFastRetryTimer = 0;
+      _vcPollTopPanel();
+    }, 30 * 1000);
+  }
+}
+
+function initValueCatalystMonitor() {
+  destroyValueCatalystMonitor();
+  const card = _vcCard();
+  if (!card) return;
+  applyValueCatalystLanguage();
+  _vcScheduleTopTypewriter(true);
+  const stream = document.getElementById('catalystMarquee');
+  if (stream) {
+    applyMarqueeY(stream, { pxPerSec: 11, pauseOnHover: true, idleMs: 10000, force: true });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (stream && stream._marqueeCleanup) {
+          try { stream._marqueeCleanup(); } catch (e) {}
+        }
+        applyMarqueeY(stream, { pxPerSec: 11, pauseOnHover: true, idleMs: 10000, force: true });
+      });
+    });
+  }
+  if (!vcUnloadBound) {
+    vcUnloadBound = true;
+    window.addEventListener('beforeunload', () => destroyValueCatalystMonitor(), { passive: true });
+  }
 }
 
 function refreshNewsFeed() {
@@ -9042,6 +9915,18 @@ function toggleDashMapPin() {
   updateDashMapPinBtn();
 }
 
+function triggerKlineEntrance() {
+  const el = document.getElementById('klinePageChart');
+  if (!el) return;
+  el.classList.remove('kline-entrance');
+  void el.offsetWidth;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.classList.add('kline-entrance');
+    });
+  });
+}
+
 function switchDashTab(key, opts) {
   const keepPin = !!(opts && opts.keepPin);
   const userAction = !(opts && opts.userAction === false);
@@ -9087,8 +9972,8 @@ function switchDashTab(key, opts) {
     nextEl.style.pointerEvents = 'none';
     curEl.style.opacity = '1';
     curEl.style.pointerEvents = 'none';
-    nextEl.style.transition = 'opacity 360ms ease';
-    curEl.style.transition = 'opacity 360ms ease';
+    nextEl.style.transition = 'opacity 700ms ease';
+    curEl.style.transition = 'opacity 700ms ease';
     requestAnimationFrame(() => {
       nextEl.style.opacity = '1';
       curEl.style.opacity = '0';
@@ -9098,14 +9983,14 @@ function switchDashTab(key, opts) {
       curEl.style.opacity = '';
       curEl.style.pointerEvents = '';
       nextEl.style.pointerEvents = '';
-    }, 400);
+    }, 760);
   }
   document.querySelectorAll('.dash-tab-btn').forEach(btn => {
     const k = btn.dataset.dashTab || '';
     if (!k) return;
     btn.classList.toggle('active', k === key);
   });
-  if (key === 'chart') requestAnimationFrame(() => initKlinePage());
+  if (key === 'chart') requestAnimationFrame(() => { triggerKlineEntrance(); initKlinePage(); });
   if (key === 'map') requestAnimationFrame(() => drawInstMap());
   if (key === 'holdings') {
     requestAnimationFrame(() => {
@@ -9198,6 +10083,7 @@ function applyMarqueeY(el, opts) {
   const pxPerSec = (opts && typeof opts.pxPerSec === 'number') ? opts.pxPerSec : 18;
   const pauseOnHover = !!(opts && opts.pauseOnHover);
   const idleMs = (opts && typeof opts.idleMs === 'number') ? opts.idleMs : 10000;
+  const force = !!(opts && opts.force);
   const originalHtml = el.innerHTML;
   el.classList.add('marquee-y');
   el.style.setProperty('--marquee-distance', '0px');
@@ -9290,7 +10176,12 @@ function applyMarqueeY(el, opts) {
     const h = Math.max(0, Math.round(copy1.getBoundingClientRect().height || 0));
     const vh = Math.max(0, Math.round(el.getBoundingClientRect().height || 0));
     distancePx = h;
-    if (!(h > vh + 8)) {
+    if (!(h > 0)) {
+      track.style.animation = '';
+      el.style.setProperty('--marquee-distance', '0px');
+      return false;
+    }
+    if (!(h > vh + 8) && !force) {
       track.style.animation = '';
       el.style.setProperty('--marquee-distance', '0px');
       return false;
@@ -9498,12 +10389,21 @@ function startMuskNewsAutoRefresh() {
   }, 5 * 60 * 1000);
 }
 
+let instHourlyRefreshTimer = null;
+function startInstHourlyRefresh() {
+  if (instHourlyRefreshTimer) clearInterval(instHourlyRefreshTimer);
+  instHourlyRefreshTimer = setInterval(() => {
+    try { loadInstData(); } catch (e) {}
+  }, 60 * 60 * 1000);
+}
+
 // ===== 初始化 =====
 (async function init() {
   applyLanguage(currentLang);
   bindPageFullscreen();
   bindDashUserActivity();
   markDashUserActivity(true);
+  startBurnInProtection();
   await ensureApiBaseReady();
   const sel = document.getElementById('langSelect');
   if (sel) {
@@ -9517,6 +10417,7 @@ function startMuskNewsAutoRefresh() {
   startDashKminiCarousel();
   startDashInstMiniCarousel();
   startMuskNewsAutoRefresh();
+  startInstHourlyRefresh();
   // 初始化新闻板块
   loadNewsFeed().then(() => startNewsCountdown());
   // 初始化股价监控
@@ -9531,14 +10432,21 @@ function startMuskNewsAutoRefresh() {
   loadInstData();
   switchDashTab('map', { userAction: false });
   updateDashMapPinBtn();
-  const cachedXFeed = loadXFeedCache(currentXFeed);
-  if (cachedXFeed.length) {
-    X_FEED_CACHE[currentXFeed] = cachedXFeed;
-    const countEl = document.getElementById('xFeedCount');
-    if (countEl) countEl.textContent = t('news.count', { n: cachedXFeed.length });
-    renderXFeed(cachedXFeed);
+  initValueCatalystMonitor();
+  const xFeedList = document.getElementById('xFeedList');
+  if (xFeedList) {
+    const cachedXFeed = loadXFeedCache(currentXFeed);
+    if (cachedXFeed.length) {
+      X_FEED_CACHE[currentXFeed] = cachedXFeed;
+      const countEl = document.getElementById('xFeedCount');
+      if (countEl) countEl.textContent = t('news.count', { n: cachedXFeed.length });
+      renderXFeed(cachedXFeed);
+    }
+    startXFeedAutoRefresh();
+  } else {
+    if (xFeedTimer) clearInterval(xFeedTimer);
+    xFeedTimer = null;
   }
-  startXFeedAutoRefresh();
 })();
 
 // ===== 世界地图绘制（机构持股） =====
