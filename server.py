@@ -325,6 +325,11 @@ def seo_og_png():
     return resp
 
 
+@app.route("/og.png", methods=["GET"])
+def seo_og_png_root():
+    return seo_og_png()
+
+
 @app.route("/api/logo.png", methods=["GET"])
 def seo_logo_png():
     override = _read_bytes_if_exists(LOGO_OVERRIDE_PATH)
@@ -340,6 +345,11 @@ def seo_logo_png():
     return resp
 
 
+@app.route("/logo.png", methods=["GET"])
+def seo_logo_png_root():
+    return seo_logo_png()
+
+
 @app.route("/api/favicon.png", methods=["GET"])
 def seo_favicon_png():
     override = _read_bytes_if_exists(FAVICON_OVERRIDE_PATH) or _read_bytes_if_exists(LOGO_OVERRIDE_PATH)
@@ -353,6 +363,11 @@ def seo_favicon_png():
     resp.headers["Cache-Control"] = "public, max-age=300"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
+
+
+@app.route("/favicon.png", methods=["GET"])
+def seo_favicon_png_root():
+    return seo_favicon_png()
 
 
 @app.route('/api/finnhub/candles', methods=['GET'])
@@ -6411,11 +6426,24 @@ def llm_config():
 
 @app.route('/', methods=['GET'])
 def index():
-    from flask import send_from_directory, make_response
+    from flask import send_from_directory, make_response, Response as FlaskResponse
     base_dir = os.path.dirname(os.path.abspath(__file__))
     html_path = os.path.join(base_dir, 'index.html')
     if os.path.exists(html_path):
-        resp = make_response(send_from_directory(base_dir, 'index.html'))
+        try:
+            with open(html_path, 'r', encoding='utf-8') as f:
+                html = f.read()
+            proto = (request.headers.get('x-forwarded-proto') or request.headers.get('X-Forwarded-Proto') or 'https').split(',')[0].strip() or 'https'
+            host = (request.headers.get('host') or request.headers.get('Host') or request.host or '').split(',')[0].strip()
+            if host:
+                path = request.full_path or '/'
+                if path.endswith('?'):
+                    path = path[:-1]
+                public_url = f"{proto}://{host}{path}"
+                html = re.sub(r'(<meta\s+property="og:url"\s+content=")[^"]*(".*?>)', r'\1' + public_url + r'\2', html, flags=re.IGNORECASE)
+            resp = make_response(FlaskResponse(html, mimetype='text/html; charset=utf-8'))
+        except Exception:
+            resp = make_response(send_from_directory(base_dir, 'index.html'))
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
