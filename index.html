@@ -3249,7 +3249,7 @@
       .dash-map-body #instMapCanvas { min-height:320px; }
 
       #dashPanelNews { height:auto; }
-      #dashPanelNews .dash-scroll { overflow:visible; height:auto; -webkit-overflow-scrolling:auto; }
+      #dashPanelNews .dash-scroll { overflow:auto; height:56vh; max-height:56vh; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 
       aside.dash-right .dash-feed .dash-feed-body { max-height:44vh; overflow:auto; -webkit-overflow-scrolling:touch; }
       aside.dash-right #valueCatalystCard .catalyst-stream { max-height:44vh; overflow:auto; -webkit-overflow-scrolling:touch; }
@@ -3271,6 +3271,12 @@
       #dashPanelHoldings .inst-table thead th:nth-child(5),
       #dashPanelHoldings .inst-table thead th:nth-child(6),
       #dashPanelHoldings .inst-table thead th:nth-child(8) { display:none; }
+
+      #dashPanelHoldings .inst-table thead th { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      #dashPanelHoldings .inst-table thead th:nth-child(4),
+      #dashPanelHoldings .inst-table tbody td.shares { width:86px; }
+      #dashPanelHoldings .inst-table thead th:nth-child(7),
+      #dashPanelHoldings .inst-table tbody td.value { width:86px; }
 
       #dashPanelHoldings .inst-table tbody td.name-cn,
       #dashPanelHoldings .inst-table tbody td.change,
@@ -10400,13 +10406,21 @@ function applyAutoScrollDown(el, opts) {
   let paused = false;
   let waitingReset = false;
   let resetStartedAt = 0;
+  let resumeTimer = 0;
   el.scrollTop = 0;
   const onEnter = () => { paused = true; };
   const onLeave = () => { paused = false; };
+  const onTouch = () => {
+    paused = true;
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => { paused = false; resumeTimer = 0; }, 9000);
+  };
   if (pauseOnHover) {
     el.addEventListener('mouseenter', onEnter);
     el.addEventListener('mouseleave', onLeave);
   }
+  el.addEventListener('touchstart', onTouch, { passive: true });
+  el.addEventListener('touchmove', onTouch, { passive: true });
   const frame = (now) => {
     const dt = Math.min(0.06, Math.max(0, (now - last) / 1000));
     last = now;
@@ -10433,10 +10447,14 @@ function applyAutoScrollDown(el, opts) {
   raf = requestAnimationFrame(frame);
   el._autoScrollDownCleanup = () => {
     cancelAnimationFrame(raf);
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = 0;
     if (pauseOnHover) {
       el.removeEventListener('mouseenter', onEnter);
       el.removeEventListener('mouseleave', onLeave);
     }
+    el.removeEventListener('touchstart', onTouch);
+    el.removeEventListener('touchmove', onTouch);
     delete el._autoScrollDownCleanup;
   };
 }
@@ -10459,7 +10477,10 @@ function restartDashTabAutoScroll(key) {
     const coarse = !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
     const noHover = !!(window.matchMedia && window.matchMedia('(hover:none)').matches);
     const small = !!(window.matchMedia && window.matchMedia('(max-width: 860px)').matches);
-    if (coarse || noHover || small) return;
+    if (coarse || noHover || small) {
+      applyAutoScrollDown(el, { speed: 12, resetDelay: 2400, pauseOnHover: false });
+      return;
+    }
   }
   const pxPerSec = key === 'holdings' ? 28 : 32;
   const tryStart = (attempt) => {
