@@ -4,10 +4,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#04060A" />
+  <meta name="application-name" content="XBelievers" />
+  <meta name="apple-mobile-web-app-title" content="XBelievers" />
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+  <link rel="canonical" href="https://www.xbelievers.com/" />
   <meta name="description" id="metaDescription" content="XBelievers - XMAX Inc 实时新闻中心，全球机构持股监控" />
-  <meta property="og:title" id="metaOgTitle" content="XBelievers · 实时新闻中心" />
-  <meta property="og:description" id="metaOgDescription" content="XMAX Inc 实时新闻聚合、股价监控、全球机构持股分析" />
-  <title id="pageTitle">XBelievers · 实时新闻中心</title>
+  <meta name="title" content="XBelievers · XMAX 市场情报终端" />
+  <meta property="og:site_name" content="XBelievers" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.xbelievers.com/" />
+  <meta property="og:title" id="metaOgTitle" content="XBelievers · XMAX 市场情报终端" />
+  <meta property="og:description" id="metaOgDescription" content="XMAX Inc 实时新闻聚合、行情数据与全球机构持股可视化。适配 4K 挂墙大屏，支持长时间稳定运行。" />
+  <meta property="og:image" content="https://www.xbelievers.com/api/og.png" />
+  <meta property="og:image:secure_url" content="https://www.xbelievers.com/api/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="XBelievers · XMAX 市场情报终端" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="XBelievers · XMAX 市场情报终端" />
+  <meta name="twitter:description" content="XMAX Inc 实时新闻聚合、行情数据与全球机构持股可视化。适配 4K 挂墙大屏，支持长时间稳定运行。" />
+  <meta name="twitter:image" content="https://www.xbelievers.com/api/og.png" />
+  <title id="pageTitle">XBelievers · XMAX 市场情报终端</title>
+  <link rel="icon" href="/api/favicon.png" type="image/png" sizes="96x96" />
+  <script type="application/ld+json" id="seoJsonLd">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"XBelievers","url":"https://www.xbelievers.com/","description":"XMAX Inc 实时新闻聚合、行情数据与全球机构持股可视化。适配 4K 挂墙大屏，支持长时间稳定运行。","inLanguage":"zh-CN"},{"@type":"Organization","name":"XBelievers","url":"https://www.xbelievers.com/"}]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -84,9 +104,9 @@
     a:active { transform: scale(.97); }
     /* 减少动画偏好 */
     @media (prefers-reduced-motion: reduce) {
-      *:not(.pulse-border):not(.pulse-pop):not(.tv-shift),
-      *:not(.pulse-border):not(.pulse-pop):not(.tv-shift)::before,
-      *:not(.pulse-border):not(.pulse-pop):not(.tv-shift)::after {
+      *:not(.pulse-border):not(.pulse-pop):not(.hover-pulse):not(.tv-shift),
+      *:not(.pulse-border):not(.pulse-pop):not(.hover-pulse):not(.tv-shift)::before,
+      *:not(.pulse-border):not(.pulse-pop):not(.hover-pulse):not(.tv-shift)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -2357,7 +2377,17 @@
       backdrop-filter: blur(var(--blur));
       box-shadow: var(--shadow-sm);
       cursor:pointer;
-      user-select:none;
+      user-select:text;
+      -webkit-user-select:text;
+      transition:background .15s, border-color .15s, box-shadow .15s, transform .15s;
+    }
+    @media (hover:hover) and (pointer:fine) {
+      .ticker-pill:hover {
+        background:rgba(6,182,212,.10);
+        border-color:rgba(6,182,212,.28);
+        box-shadow:0 0 0 1px rgba(6,182,212,.10), 0 0 24px rgba(6,182,212,.12);
+        transform: translate3d(0, -1px, 0);
+      }
     }
     .ticker-pill .sym { font-size:calc(11px * var(--tv-scale)); font-weight:800; color:rgba(232,234,240,.78); }
     .ticker-pill .px { font-size:calc(15px * var(--tv-scale)); font-weight:900; font-variant-numeric:tabular-nums; color:rgba(255,255,255,.95); }
@@ -2411,6 +2441,12 @@
           dashCardHoverBlueOnce 920ms ease-in-out both,
           dashCardPop 460ms cubic-bezier(0.25, 1, 0.5, 1) both;
       }
+    }
+    .dash-card.hover-pulse {
+      z-index: 6;
+      animation:
+        dashCardHoverBlueOnce 920ms ease-in-out both,
+        dashCardPop 460ms cubic-bezier(0.25, 1, 0.5, 1) both;
     }
     .dash-card.pulse-border {
       animation:dashCardPulseBorder 1.5s ease-in-out both;
@@ -2877,10 +2913,25 @@
       font-size:11px;
       font-weight:900;
       cursor:pointer;
-      transition:background .15s, border-color .15s, color .15s;
+      transition:background .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s;
       font-family:inherit;
     }
     .dash-tab-btn.active { background:rgba(124,127,255,.16); border-color:rgba(165,180,252,.26); color:rgba(255,255,255,.92); box-shadow:0 10px 26px rgba(99,102,241,.12); }
+    @media (hover:hover) and (pointer:fine) {
+      .dash-tab-btn:hover {
+        background:rgba(6,182,212,.10);
+        border-color:rgba(6,182,212,.28);
+        color:rgba(255,255,255,.92);
+        box-shadow:0 0 0 1px rgba(6,182,212,.10), 0 0 18px rgba(6,182,212,.12);
+        transform: translate3d(0, -1px, 0);
+      }
+      .dash-tab-btn.active:hover {
+        background:rgba(124,127,255,.18);
+        border-color:rgba(165,180,252,.30);
+        box-shadow:0 10px 26px rgba(99,102,241,.14);
+        transform:none;
+      }
+    }
     .dash-panel { flex:1; min-height:0; padding:10px 12px 12px; }
     .dash-panel.hidden { display:none; }
     .dash-scroll { height:100%; overflow:auto; }
@@ -3388,7 +3439,7 @@
         
       </div>
       <div class="hd-right">
-        <div class="ticker-pill" onclick="window.open('https://finance.yahoo.com/quote/XMAX','_blank')">
+        <div class="ticker-pill" id="headerTickerPill" role="button" tabindex="0" onpointerdown="tickerPillPointerDown(event)" onpointerup="tickerPillPointerUp(event)" onpointercancel="tickerPillPointerUp(event)" onclick="openXmaxYahoo(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openXmaxYahoo(event);}">
           <div class="sym">NASDAQ:XMAX</div>
           <div class="px" id="headerPrice">--</div>
           <div class="chg" id="headerChange">--</div>
@@ -3483,7 +3534,7 @@
           <div class="dash-card-head">
             <div class="dash-map-head">
               <div class="dash-mid-tabs">
-                <button class="dash-tab-btn active" type="button" data-dash-tab="map" onclick="switchDashTab('map')" data-i18n="dash.tabMap">全球分布</button>
+                <button class="dash-tab-btn active" type="button" data-dash-tab="map" onclick="switchDashTab('map')" data-i18n="dash.tabMap">全球机构分布</button>
                 <button class="dash-tab-btn" type="button" data-dash-tab="holdings" onclick="switchDashTab('holdings')" data-i18n="dash.tabHoldings">机构持股</button>
                 <button class="dash-tab-btn" type="button" data-dash-tab="news" onclick="switchDashTab('news')" data-i18n="dash.tabNews">新闻摘要</button>
                 <button class="dash-tab-btn" type="button" data-dash-tab="chart" onclick="switchDashTab('chart')" data-i18n="dash.tabChart">K线大图</button>
@@ -3618,7 +3669,7 @@
       <aside class="dash-right">
         <div class="dash-card dash-feed">
           <div class="dash-card-head">
-            <span class="flex items-center gap-2">🔔 <span data-i18n="dash.feedAnn">SEC公告</span> <span class="dash-live-engaged qe-breathe"><span class="dot"></span>LIVE ENGAGED</span></span>
+            <span class="flex items-center gap-2" role="button" tabindex="0" onclick="openSecEdgar(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSecEdgar(event);}">🔔 <span data-i18n="dash.feedAnn">SEC公告</span> <span class="dash-live-engaged qe-breathe"><span class="dot"></span><span data-i18n="dash.liveEngaged">实时监控中</span></span></span>
             <span class="announcement-badge" id="announcementBadge">0 新</span>
           </div>
           <div class="dash-feed-body scrollbar-none">
@@ -4004,7 +4055,7 @@ const I18N = {
       instMini: '机构持股概览',
       map: '全球机构分布图',
       bottom: '综合区',
-      tabMap: '全球分布',
+      tabMap: '全球机构分布',
       tabHoldings: '机构持股',
       tabNews: '马斯克系新闻',
       tabChart: 'K线大图',
@@ -4017,6 +4068,7 @@ const I18N = {
       thValue: '市值',
       thPct: '占比',
       feedAnn: 'SEC公告',
+      liveEngaged: '实时监控中',
       feedX: 'XMax官方推特',
     },
     hero: {
@@ -4192,6 +4244,7 @@ const I18N = {
       thValue: 'Value',
       thPct: 'Pct',
       feedAnn: 'SEC Announcement',
+      liveEngaged: 'Live monitoring',
       feedX: 'XMax Official X',
     },
     hero: {
@@ -4428,6 +4481,34 @@ let dashTabLastActivityMarkTs = 0;
 // ===== 主Tab切换 =====
 function goHome() {
   return false;
+}
+
+let headerTickerPillDown = null;
+function tickerPillPointerDown(e) {
+  if (!e) return;
+  headerTickerPillDown = { x: e.clientX, y: e.clientY, ts: Date.now() };
+}
+function tickerPillPointerUp() {
+  headerTickerPillDown = null;
+}
+
+function openXmaxYahoo(e) {
+  try { if (e && typeof e.preventDefault === 'function') e.preventDefault(); } catch (err) {}
+  const sel = (() => {
+    try { return (window.getSelection && typeof window.getSelection === 'function') ? String(window.getSelection()) : ''; } catch (err) { return ''; }
+  })();
+  if (sel && sel.trim().length) return;
+  if (headerTickerPillDown && e && Number.isFinite(e.clientX) && Number.isFinite(e.clientY)) {
+    const dx = Math.abs(e.clientX - headerTickerPillDown.x);
+    const dy = Math.abs(e.clientY - headerTickerPillDown.y);
+    if (dx + dy > 6) return;
+  }
+  window.open('https://finance.yahoo.com/quote/XMAX', '_blank', 'noopener');
+}
+
+function openSecEdgar(e) {
+  try { if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch (err) {}
+  window.open('https://www.sec.gov/edgar/browse/?CIK=1473334&owner=exclude', '_blank', 'noopener');
 }
 
 let quoteFsCloseTimer = null;
@@ -5193,6 +5274,7 @@ function inferInstitutionCnName(name) {
   if (!s) return '';
   const u = s.toUpperCase();
   const rules = [
+    { re: /(VANGUARD\s+GLOBAL\s+ADVISERS?)/i, v: '先锋领航全球顾问' },
     { re: /(VANGUARD)/i, v: '先锋领航' },
     { re: /(BLACKROCK)/i, v: '贝莱德' },
     { re: /(STATE\s*STREET)/i, v: '道富' },
@@ -5212,10 +5294,13 @@ function inferInstitutionCnName(name) {
     { re: /(J\.?\s*P\.?\s*MORGAN|JPMORGAN)/i, v: '摩根大通' },
     { re: /(BANK\s*OF\s*AMERICA|BOFA)/i, v: '美国银行' },
     { re: /(CHARLES\s+SCHWAB|\bSCHWAB\b)/i, v: '嘉信理财' },
+    { re: /(BARCLAYS)/i, v: '巴克莱' },
+    { re: /(ROYAL\s+BANK\s+OF\s+CANADA)/i, v: '加拿大皇家银行' },
     { re: /(HUDSON\s+BAY)/i, v: '哈德逊湾资本' },
+    { re: /(ENGINEERS\s+GATE\s+MANAGER)/i, v: '工程师门管理' },
     { re: /(ENGINEERS\s+GATE)/i, v: '工程师门' },
     { re: /(JUMP\s+FINANCIAL)/i, v: 'Jump金融' },
-    { re: /(GLOBAL\s+RETIREMENT\s+PARTNERS)/i, v: '全球退休伙伴' },
+    { re: /(GLOBAL\s+RETIREMENT\s+PARTNERS)/i, v: '全球退休合伙' },
   ];
   for (const r of rules) {
     if (r.re.test(s)) return r.v;
@@ -7232,7 +7317,7 @@ function formatTimeAgo(timeStr) {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-const DASH_CARD_PULSE_MS = 1500;
+const DASH_CARD_PULSE_MS = 980;
 function pulseDashCard(el) {
   const target = el && el.classList && el.classList.contains('dash-card')
     ? el
@@ -7240,11 +7325,10 @@ function pulseDashCard(el) {
   if (!target) return;
   target.classList.remove('pulse-border');
   target.classList.remove('pulse-pop');
+  target.classList.remove('hover-pulse');
   void target.offsetWidth;
-  target.classList.add('pulse-border');
-  target.classList.add('pulse-pop');
-  setTimeout(() => target.classList.remove('pulse-border'), DASH_CARD_PULSE_MS);
-  setTimeout(() => target.classList.remove('pulse-pop'), DASH_CARD_PULSE_MS);
+  target.classList.add('hover-pulse');
+  setTimeout(() => target.classList.remove('hover-pulse'), DASH_CARD_PULSE_MS);
 }
 
 function startBurnInProtection() {

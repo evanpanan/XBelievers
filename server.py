@@ -20,6 +20,8 @@ import json
 import time
 import threading
 import hashlib
+import zlib
+import struct
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse, quote, urlencode
@@ -97,6 +99,130 @@ def _no_cache_kline(resp):
             resp.headers['Expires'] = '0'
     except Exception:
         pass
+    return resp
+
+
+_seo_img_cache = {"og": {"ts": 0, "bytes": b""}, "favicon": {"ts": 0, "bytes": b""}}
+
+
+def _png_chunk(tag: bytes, data: bytes) -> bytes:
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+
+def _png_from_rgb(w: int, h: int, pixel_fn) -> bytes:
+    raw = bytearray()
+    for y in range(h):
+        raw.append(0)
+        for x in range(w):
+            r, g, b = pixel_fn(x, y)
+            raw.extend(bytes((int(r) & 255, int(g) & 255, int(b) & 255)))
+    comp = zlib.compress(bytes(raw), level=9)
+    ihdr = struct.pack(">IIBBBBB", int(w), int(h), 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", comp) + _png_chunk(b"IEND", b"")
+
+
+def _seo_og_png_bytes() -> bytes:
+    now = time.time()
+    entry = _seo_img_cache.get("og") or {}
+    if entry.get("bytes") and (now - float(entry.get("ts") or 0)) < 24 * 60 * 60:
+        return entry["bytes"]
+
+    bg0 = (4, 6, 10)
+    bg1 = (11, 14, 20)
+    cyan = (6, 182, 212)
+    neon = (0, 230, 118)
+    w, h = 1200, 630
+
+    def lerp(a, b, t):
+        return int(a + (b - a) * t)
+
+    def clamp01(t):
+        return 0.0 if t < 0 else (1.0 if t > 1 else t)
+
+    def pix(x, y):
+        ty = y / (h - 1)
+        r = lerp(bg0[0], bg1[0], ty)
+        g = lerp(bg0[1], bg1[1], ty)
+        b = lerp(bg0[2], bg1[2], ty)
+
+        cx, cy = w * 0.55, h * 0.45
+        dx = (x - cx) / w
+        dy = (y - cy) / h
+        vv = clamp01((dx * dx + dy * dy) * 3.2)
+        r = lerp(r, 0, vv * 0.35)
+        g = lerp(g, 0, vv * 0.35)
+        b = lerp(b, 0, vv * 0.35)
+
+        ox, oy = w * 0.78, h * 0.28
+        dd = ((x - ox) ** 2 + (y - oy) ** 2) ** 0.5
+        t = clamp01(1 - dd / (w * 0.22))
+        r = lerp(r, cyan[0], t * 0.18)
+        g = lerp(g, cyan[1], t * 0.18)
+        b = lerp(b, cyan[2], t * 0.18)
+
+        ox2, oy2 = w * 0.20, h * 0.72
+        dd2 = ((x - ox2) ** 2 + (y - oy2) ** 2) ** 0.5
+        t2 = clamp01(1 - dd2 / (w * 0.24))
+        r = lerp(r, neon[0], t2 * 0.14)
+        g = lerp(g, neon[1], t2 * 0.14)
+        b = lerp(b, neon[2], t2 * 0.14)
+
+        return r, g, b
+
+    bts = _png_from_rgb(w, h, pix)
+    _seo_img_cache["og"] = {"ts": now, "bytes": bts}
+    return bts
+
+
+def _seo_favicon_png_bytes() -> bytes:
+    now = time.time()
+    entry = _seo_img_cache.get("favicon") or {}
+    if entry.get("bytes") and (now - float(entry.get("ts") or 0)) < 24 * 60 * 60:
+        return entry["bytes"]
+
+    bg1 = (11, 14, 20)
+    cyan = (6, 182, 212)
+    w, h = 96, 96
+
+    def lerp(a, b, t):
+        return int(a + (b - a) * t)
+
+    def clamp01(t):
+        return 0.0 if t < 0 else (1.0 if t > 1 else t)
+
+    def pix(x, y):
+        r, g, b = bg1
+        cx, cy = w / 2, h / 2
+        dd = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+        t = clamp01(1 - dd / (w * 0.55))
+        r = lerp(r, cyan[0], t * 0.55)
+        g = lerp(g, cyan[1], t * 0.55)
+        b = lerp(b, cyan[2], t * 0.55)
+        ring = abs(dd - w * 0.32)
+        rt = clamp01(1 - ring / (w * 0.03))
+        r = lerp(r, 255, rt * 0.10)
+        g = lerp(g, 255, rt * 0.10)
+        b = lerp(b, 255, rt * 0.10)
+        return r, g, b
+
+    bts = _png_from_rgb(w, h, pix)
+    _seo_img_cache["favicon"] = {"ts": now, "bytes": bts}
+    return bts
+
+
+@app.route("/api/og.png", methods=["GET"])
+def seo_og_png():
+    bts = _seo_og_png_bytes()
+    resp = Response(bts, mimetype="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return resp
+
+
+@app.route("/api/favicon.png", methods=["GET"])
+def seo_favicon_png():
+    bts = _seo_favicon_png_bytes()
+    resp = Response(bts, mimetype="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
     return resp
 
 
