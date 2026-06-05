@@ -6426,10 +6426,15 @@ def llm_config():
 
 @app.route('/', methods=['GET'])
 def index():
-    from flask import send_from_directory, make_response, Response as FlaskResponse
+    from flask import send_from_directory, make_response, Response as FlaskResponse, redirect
     base_dir = os.path.dirname(os.path.abspath(__file__))
     html_path = os.path.join(base_dir, 'index.html')
     if os.path.exists(html_path):
+        ua = (request.headers.get('User-Agent') or '').lower()
+        is_meta_crawler = ('whatsapp' in ua) or ('facebookexternalhit' in ua) or ('facebot' in ua)
+        has_query = bool(request.query_string)
+        if is_meta_crawler and (request.path == '/' or request.path == '') and not has_query:
+            return redirect('/?v=20260605b', code=302)
         try:
             with open(html_path, 'r', encoding='utf-8') as f:
                 html = f.read()
@@ -6440,6 +6445,8 @@ def index():
                 if path.endswith('?'):
                     path = path[:-1]
                 public_url = f"{proto}://{host}{path}"
+                if (request.path == '/' or request.path == '') and not has_query:
+                    public_url = f"{proto}://{host}/?v=20260605b"
                 html = re.sub(r'(<meta\s+property="og:url"\s+content=")[^"]*(".*?>)', r'\1' + public_url + r'\2', html, flags=re.IGNORECASE)
             resp = make_response(FlaskResponse(html, mimetype='text/html; charset=utf-8'))
         except Exception:
