@@ -39,6 +39,9 @@ _tweet_sync_lock = threading.Lock()
 MUSK_NEWS_DB_CACHE_KEY = 'musk_news_domestic_v1'
 _musk_news_refresh_inflight = False
 _musk_news_refresh_lock = threading.Lock()
+OG_OVERRIDE_PATH = os.path.join(BASE_DIR, 'og.png')
+LOGO_OVERRIDE_PATH = os.path.join(BASE_DIR, 'logo.png')
+FAVICON_OVERRIDE_PATH = os.path.join(BASE_DIR, 'favicon.png')
 
 MUSK_CATALYST_CONFIG = {
     "updated": "2026-06-04T00:00:00Z",
@@ -102,16 +105,40 @@ def _no_cache_kline(resp):
     return resp
 
 
-_seo_img_cache = {"og": {"ts": 0, "bytes": b""}, "favicon": {"ts": 0, "bytes": b""}}
+_seo_img_cache = {"og": {"ts": 0, "bytes": b"", "v": ""}, "favicon": {"ts": 0, "bytes": b""}}
+
+def _read_bytes_if_exists(path: str, max_bytes: int = 12 * 1024 * 1024) -> Optional[bytes]:
+    try:
+        if not path or not os.path.isfile(path):
+            return None
+        size = int(os.path.getsize(path))
+        if size <= 0 or size > int(max_bytes):
+            return None
+        with open(path, "rb") as f:
+            return f.read()
+    except Exception:
+        return None
+
+
+def _mime_from_path(path: str) -> str:
+    try:
+        ext = os.path.splitext(path or "")[1].lower()
+    except Exception:
+        ext = ""
+    if ext in (".jpg", ".jpeg"):
+        return "image/jpeg"
+    if ext == ".webp":
+        return "image/webp"
+    return "image/png"
+
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
     return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-
 def _png_from_rgb(w: int, h: int, pixel_fn) -> bytes:
     raw = bytearray()
     for y in range(h):
+        raw.append(0)
         raw.append(0)
         for x in range(w):
             r, g, b = pixel_fn(x, y)
@@ -121,10 +148,10 @@ def _png_from_rgb(w: int, h: int, pixel_fn) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", comp) + _png_chunk(b"IEND", b"")
 
 
-def _seo_og_png_bytes() -> bytes:
+def _seo_og_png_bytes(v: str = "") -> bytes:
     now = time.time()
     entry = _seo_img_cache.get("og") or {}
-    if entry.get("bytes") and (now - float(entry.get("ts") or 0)) < 24 * 60 * 60:
+    if entry.get("bytes") and (entry.get("v") or "") == (v or "") and (now - float(entry.get("ts") or 0)) < 24 * 60 * 60:
         return entry["bytes"]
 
     bg0 = (4, 6, 10)
@@ -138,6 +165,44 @@ def _seo_og_png_bytes() -> bytes:
 
     def clamp01(t):
         return 0.0 if t < 0 else (1.0 if t > 1 else t)
+
+    def blend(c0, c1, t):
+        t = clamp01(t)
+        return (
+            lerp(c0[0], c1[0], t),
+            lerp(c0[1], c1[1], t),
+            lerp(c0[2], c1[2], t),
+        )
+
+    import math
+    gx, gy = w * 0.72, h * 0.40
+    gr = w * 0.19
+    lon0 = math.radians(12)
+    lat0 = math.radians(18)
+
+    dots_geo = [
+        (-122, 37), (-97, 32), (-74, 40), (-79, 43), (-99, 56),
+        (-46, -23), (-58, -34),
+        (-3, 55), (2, 46), (8, 50), (14, 52), (24, 60), (37, 55),
+        (31, 30), (55, 25), (72, 19), (78, 22), (90, 24),
+        (104, 35), (116, 40), (121, 31), (127, 37), (139, 35),
+        (103, 1), (106, -6),
+        (151, -33), (115, -32), (28, -26),
+    ]
+
+    dots_px = []
+    for lon_deg, lat_deg in dots_geo:
+        lon = math.radians(lon_deg)
+        lat = math.radians(lat_deg)
+        clat = math.cos(lat)
+        slat = math.sin(lat)
+        dlon = lon - lon0
+        x = clat * math.sin(dlon)
+        y = slat * math.cos(lat0) - clat * math.cos(dlon) * math.sin(lat0)
+        z = slat * math.sin(lat0) + clat * math.cos(dlon) * math.cos(lat0)
+        if z <= 0:
+            continue
+        dots_px.append((gx + gr * x, gy + gr * y))
 
     def pix(x, y):
         ty = y / (h - 1)
@@ -167,10 +232,44 @@ def _seo_og_png_bytes() -> bytes:
         g = lerp(g, neon[1], t2 * 0.14)
         b = lerp(b, neon[2], t2 * 0.14)
 
-        return r, g, b
+        if y < 160:
+            base = (r, g, b)
+            r, g, b = blend(base, (12, 18, 30), 0.35)
+            stripe = (x + y * 2) % 160
+            if stripe < 10:
+                r, g, b = blend((r, g, b), cyan, 0.22)
+
+        if (y % 7) == 0:
+            r, g, b = blend((r, g, b), (255, 255, 255), 0.015)
+
+        dxg = x - gx
+        dyg = y - gy
+        rr = (dxg * dxg + dyg * dyg) / (gr * gr)
+        if rr <= 1.0:
+            xn = dxg / gr
+            yn = dyg / gr
+            z = (1.0 - rr) ** 0.5
+            lon = math.atan2(xn, z)
+            lat = math.asin(max(-1.0, min(1.0, yn)))
+            base = (r, g, b)
+            r, g, b = blend(base, (10, 18, 28), 0.55)
+            r, g, b = blend((r, g, b), cyan, 0.18)
+            if abs(math.sin(lat * 6.0)) < 0.08 or abs(math.sin(lon * 6.0)) < 0.08:
+                r, g, b = blend((r, g, b), cyan, 0.55)
+            rim = abs((rr ** 0.5) - 1.0)
+            if rim < 0.012:
+                r, g, b = blend((r, g, b), cyan, 0.75)
+            for px, py in dots_px:
+                ddx = x - px
+                ddy = y - py
+                if (ddx * ddx + ddy * ddy) <= 14:
+                    r, g, b = blend((r, g, b), neon, 0.65)
+                    break
+
+        return int(r) & 255, int(g) & 255, int(b) & 255
 
     bts = _png_from_rgb(w, h, pix)
-    _seo_img_cache["og"] = {"ts": now, "bytes": bts}
+    _seo_img_cache["og"] = {"ts": now, "bytes": bts, "v": (v or "")}
     return bts
 
 
@@ -212,17 +311,47 @@ def _seo_favicon_png_bytes() -> bytes:
 
 @app.route("/api/og.png", methods=["GET"])
 def seo_og_png():
-    bts = _seo_og_png_bytes()
+    override = _read_bytes_if_exists(OG_OVERRIDE_PATH)
+    if override:
+        resp = Response(override, mimetype=_mime_from_path(OG_OVERRIDE_PATH))
+        resp.headers["Cache-Control"] = "public, max-age=300"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        return resp
+    v = (request.args.get("v") or "").strip()
+    bts = _seo_og_png_bytes(v=v)
     resp = Response(bts, mimetype="image/png")
-    resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
+@app.route("/api/logo.png", methods=["GET"])
+def seo_logo_png():
+    override = _read_bytes_if_exists(LOGO_OVERRIDE_PATH)
+    if override:
+        resp = Response(override, mimetype=_mime_from_path(LOGO_OVERRIDE_PATH))
+        resp.headers["Cache-Control"] = "public, max-age=300"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        return resp
+    bts = _seo_favicon_png_bytes()
+    resp = Response(bts, mimetype="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
 
 
 @app.route("/api/favicon.png", methods=["GET"])
 def seo_favicon_png():
+    override = _read_bytes_if_exists(FAVICON_OVERRIDE_PATH) or _read_bytes_if_exists(LOGO_OVERRIDE_PATH)
+    if override:
+        resp = Response(override, mimetype=_mime_from_path(FAVICON_OVERRIDE_PATH if os.path.isfile(FAVICON_OVERRIDE_PATH) else LOGO_OVERRIDE_PATH))
+        resp.headers["Cache-Control"] = "public, max-age=300"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        return resp
     bts = _seo_favicon_png_bytes()
     resp = Response(bts, mimetype="image/png")
-    resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
 
 

@@ -16,17 +16,17 @@
   <meta property="og:url" content="https://www.xbelievers.com/" />
   <meta property="og:title" id="metaOgTitle" content="XBelievers · XMAX 市场情报终端" />
   <meta property="og:description" id="metaOgDescription" content="XMAX Inc 实时新闻聚合、行情数据与全球机构持股可视化。适配 4K 挂墙大屏，支持长时间稳定运行。" />
-  <meta property="og:image" content="https://www.xbelievers.com/api/og.png" />
-  <meta property="og:image:secure_url" content="https://www.xbelievers.com/api/og.png" />
+  <meta property="og:image" content="https://www.xbelievers.com/api/og.png?v=20260605a" />
+  <meta property="og:image:secure_url" content="https://www.xbelievers.com/api/og.png?v=20260605a" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="XBelievers · XMAX 市场情报终端" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="XBelievers · XMAX 市场情报终端" />
   <meta name="twitter:description" content="XMAX Inc 实时新闻聚合、行情数据与全球机构持股可视化。适配 4K 挂墙大屏，支持长时间稳定运行。" />
-  <meta name="twitter:image" content="https://www.xbelievers.com/api/og.png" />
+  <meta name="twitter:image" content="https://www.xbelievers.com/api/og.png?v=20260605a" />
   <title id="pageTitle">XBelievers · XMAX 市场情报终端</title>
-  <link rel="icon" href="/api/favicon.png" type="image/png" sizes="96x96" />
+  <link rel="icon" href="/api/favicon.png?v=20260605a" type="image/png" sizes="96x96" />
   <script type="application/ld+json" id="seoJsonLd">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"XBelievers","url":"https://www.xbelievers.com/","description":"XMAX Inc 实时新闻聚合、行情数据与全球机构持股可视化。适配 4K 挂墙大屏，支持长时间稳定运行。","inLanguage":"zh-CN"},{"@type":"Organization","name":"XBelievers","url":"https://www.xbelievers.com/"}]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -4481,6 +4481,20 @@ let dashTabLastActivityMarkTs = 0;
 // ===== 主Tab切换 =====
 function goHome() {
   return false;
+}
+
+const BRAND_ASSET_V = '20260605a';
+function applyBrandAssets() {
+  const logoImg = document.querySelector('header .logo-ico img');
+  if (!logoImg) return;
+  const fallbackSrc = logoImg.getAttribute('src') || '';
+  logoImg.alt = 'XBelievers';
+  logoImg.decoding = 'async';
+  logoImg.onerror = () => {
+    try { logoImg.onerror = null; } catch (e) {}
+    if (fallbackSrc) logoImg.src = fallbackSrc;
+  };
+  logoImg.src = `/api/logo.png?v=${BRAND_ASSET_V}&_=${Date.now()}`;
 }
 
 let headerTickerPillDown = null;
@@ -10484,6 +10498,7 @@ function startInstHourlyRefresh() {
 // ===== 初始化 =====
 (async function init() {
   applyLanguage(currentLang);
+  applyBrandAssets();
   bindPageFullscreen();
   bindDashUserActivity();
   markDashUserActivity(true);
