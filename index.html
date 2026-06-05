@@ -3262,7 +3262,7 @@
       #dashPanelHoldings .inst-export-btn { width:100%; justify-content:center; }
 
       #dashPanelHoldings .inst-table-wrap { overflow-x:hidden; padding-right:0; touch-action:pan-y; }
-      #dashPanelHoldings .inst-table { width:100%; min-width:0; table-layout:fixed; }
+      #dashPanelHoldings .inst-table { width:100%; min-width:0; table-layout:auto; }
       #dashPanelHoldings .inst-table thead th { padding:8px 10px; font-size:10px; }
       #dashPanelHoldings .inst-table tbody td { padding:10px 10px; font-size:11px; }
       #dashPanelHoldings .inst-table thead th:nth-child(1) { width:34px !important; }
@@ -10478,7 +10478,7 @@ function restartDashTabAutoScroll(key) {
     const noHover = !!(window.matchMedia && window.matchMedia('(hover:none)').matches);
     const small = !!(window.matchMedia && window.matchMedia('(max-width: 860px)').matches);
     if (coarse || noHover || small) {
-      applyAutoScrollDown(el, { speed: 12, resetDelay: 2400, pauseOnHover: false });
+      applyAutoScrollDown(el, { speed: 40, resetDelay: 2400, pauseOnHover: false });
       return;
     }
   }
