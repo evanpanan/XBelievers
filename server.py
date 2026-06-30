@@ -22,7 +22,7 @@ import threading
 import hashlib
 import zlib
 import struct
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse, quote, urlencode
 from abc import ABC, abstractmethod
@@ -5076,6 +5076,113 @@ def xmax_news_rss():
     except Exception as e:
         print(f"[xmax_news_rss] Error: {e}")
         return jsonify({"success": False, "error": str(e), "items": []}), 503
+
+
+@app.route('/api/xmax_site_news', methods=['GET'])
+def api_xmax_site_news():
+    limit_raw = request.args.get('limit', '10')
+    try:
+        limit = min(max(int(limit_raw), 1), 30)
+    except Exception:
+        limit = 10
+
+    try:
+        upstream = requests.get(
+            "https://xmax.com/list/3.html",
+            timeout=20,
+            headers={
+                "User-Agent": request.headers.get("User-Agent") or "Mozilla/5.0",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+        )
+        if upstream.status_code != 200:
+            return jsonify({"success": False, "status": upstream.status_code, "items": []}), 502
+
+        soup = BeautifulSoup(upstream.text or "", "html.parser")
+        items = []
+        seen = set()
+
+        month_map = {
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+        }
+
+        def parse_date_to_iso(raw: str) -> str:
+            s = (raw or "").strip()
+            if not s:
+                return ""
+            m = re.search(r"(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*[.,]?\s*(\d{4})", s, re.I)
+            if not m:
+                return ""
+            mo = month_map.get((m.group(1) or "").lower())
+            day = int(m.group(2) or 0)
+            year = int(m.group(3) or 0)
+            if not mo or not day or not year:
+                return ""
+            return datetime(year, mo, day).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+        for a in soup.find_all("a", href=re.compile(r"^/article/\d+\.html$", re.I)):
+            href = (a.get("href") or "").strip()
+            if not href:
+                continue
+            url = "https://xmax.com" + href
+            if url in seen:
+                continue
+            seen.add(url)
+
+            title_el = a.find("h2")
+            summary_el = a.find("p")
+            date_el = a.find("span")
+            title = (title_el.get_text(" ", strip=True) if title_el else "").strip()
+            summary = (summary_el.get_text(" ", strip=True) if summary_el else "").strip()
+            date_raw = (date_el.get_text(" ", strip=True) if date_el else "").strip()
+            time_iso = parse_date_to_iso(date_raw)
+            if not title:
+                txt = a.get_text(" ", strip=True)
+                title = (txt or "").strip()
+            items.append({
+                "title": title,
+                "url": url,
+                "time": time_iso,
+                "summary": summary,
+                "source": "XMAX",
+            })
+            if len(items) >= limit:
+                break
+
+        resp = jsonify({"success": True, "items": items, "count": len(items), "source": "XMAX Site"})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)[:200], "items": []}), 503
+
+
+@app.route('/api/translate_batch', methods=['POST'])
+def api_translate_batch():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        items = data.get('items') or []
+        if not isinstance(items, list):
+            return jsonify({"success": False, "items": [], "error": "invalid_items"}), 400
+        out = []
+        for it in items[:20]:
+            if not isinstance(it, dict):
+                continue
+            url = (it.get('url') or '').strip()
+            title = (it.get('title') or '').strip()
+            summary = (it.get('summary') or '').strip()
+            title_cn = translate_title_to_chinese(title) or translate_text_en_to_zh(title) or ''
+            summary_cn = translate_text_en_to_zh(summary) or ''
+            out.append({
+                "url": url,
+                "title_cn": title_cn or title,
+                "summary_cn": summary_cn or summary,
+            })
+        resp = jsonify({"success": True, "items": out, "count": len(out)})
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+    except Exception as e:
+        return jsonify({"success": False, "items": [], "error": str(e)[:200]}), 500
 
 
 def _fetch_rss_items(url: str, limit: int = 10, ua: str = ""):

@@ -8229,12 +8229,13 @@ const XMAX_SITE_NEWS_URL = 'https://xmax.com/list/3.html';
 const XMAX_YAHOO_RSS_URL = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=XMAX';
 const MUSK_GNEWS_RSS_URL = 'https://news.google.com/rss/search?q=Elon+Musk+OR+SpaceX+OR+Tesla+OR+xAI&hl=en-US&gl=US&ceid=US:en';
 const MUSK_TESLARATI_RSS_URL = 'https://www.teslarati.com/feed/';
-const XMAX_NEWS_CACHE_KEY = 'xwin_xmax_news_cache_v3';
+const XMAX_NEWS_CACHE_KEY = 'xwin_xmax_news_cache_v5';
 const MUSK_NEWS_CACHE_KEY = 'xwin_musk_news_cache_v3';
 const MUSK_NEWS_MIN_COUNT = 20;
 const X_FEED_MIN_COUNT = 20;
-const XMAX_NEWS_CHECK_MS = 60 * 60 * 1000;
+const XMAX_NEWS_CHECK_MS = 10 * 60 * 1000;
 let xmaxNewsLastCheckedTs = 0;
+let xmaxNewsBgRefreshInFlight = false;
 const XMAX_NEWS_SEED_ITEMS = [
   {
     title: 'XMax Announces Additional AI Services Agreement Expected to Generate Up to Approximately $3.6 Million in Annual Revenue',
@@ -8451,6 +8452,136 @@ function saveXmaxNewsCache(items, checkedAt, updatedAt) {
   } catch (e) {}
 }
 
+const XMAX_NEWS_ZH_CACHE_KEY = 'xwin_xmax_news_zh_cache_v2';
+const XMAX_NEWS_ZH_INFLIGHT = new Set();
+
+function loadXmaxNewsZhCache() {
+  try {
+    const raw = localStorage.getItem(XMAX_NEWS_ZH_CACHE_KEY);
+    if (!raw) return { map: {}, ts: 0 };
+    const data = JSON.parse(raw);
+    const map = (data && typeof data.map === 'object' && data.map) ? data.map : {};
+    const ts = Number((data && data.ts) || 0);
+    return { map, ts };
+  } catch (e) {
+    return { map: {}, ts: 0 };
+  }
+}
+
+function saveXmaxNewsZhCache(map) {
+  try {
+    localStorage.setItem(XMAX_NEWS_ZH_CACHE_KEY, JSON.stringify({ map: map || {}, ts: Date.now() }));
+  } catch (e) {}
+}
+
+function _looksEnglishText(s) {
+  const t = String(s || '').trim();
+  if (!t) return false;
+  const letters = (t.match(/[A-Za-z]/g) || []).length;
+  if (letters < 8) return false;
+  return letters >= Math.max(8, Math.floor(t.length * 0.25));
+}
+
+async function _postLocalApiJson(path, payload, timeoutMs) {
+  const url = (API_BASE || '') + path;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), Math.max(2000, Number(timeoutMs) || 12000));
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload || {}),
+      signal: ctrl.signal,
+    });
+    const text = await resp.text();
+    let data = null;
+    try { data = JSON.parse(text || '{}'); } catch (e) {}
+    return { ok: resp.ok, status: resp.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: null };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function ensureXmaxNewsZh(items) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return list;
+  const cache = loadXmaxNewsZhCache();
+  const map = cache && cache.map ? cache.map : {};
+  const now = Date.now();
+  const ttl = 14 * 24 * 60 * 60 * 1000;
+
+  for (const it of list) {
+    const url = String(it && it.url ? it.url : '').trim();
+    if (!url) continue;
+    const hit = map[url];
+    if (!hit) continue;
+    if (hit.ts && (now - Number(hit.ts || 0)) > ttl) continue;
+    if (!it.title_cn && hit.title_cn) it.title_cn = hit.title_cn;
+    if (!it.summary_cn && hit.summary_cn) it.summary_cn = hit.summary_cn;
+  }
+
+  const need = list.filter(it => {
+    const url = String(it && it.url ? it.url : '').trim();
+    if (!url) return false;
+    if (it.title_cn && it.summary_cn) return false;
+    const title = String(it && it.title ? it.title : '').trim();
+    const summary = String(it && it.summary ? it.summary : '').trim();
+    return _looksEnglishText(title) || _looksEnglishText(summary);
+  }).slice(0, 6);
+
+  if (!need.length) return list;
+  const payload = { items: need.map(it => ({ url: String(it.url || ''), title: String(it.title || ''), summary: String(it.summary || '') })) };
+  const r = await _postLocalApiJson('/api/translate_batch', payload, 12000);
+  const outItems = r && r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : [];
+  if (!outItems.length) return list;
+
+  let changed = false;
+  const byUrl = new Map(outItems.map(x => [String(x.url || '').trim(), x]));
+  for (const it of list) {
+    const url = String(it && it.url ? it.url : '').trim();
+    if (!url) continue;
+    const tr = byUrl.get(url);
+    if (!tr) continue;
+    const titleCn = String(tr.title_cn || '').trim();
+    const summaryCn = String(tr.summary_cn || '').trim();
+    if (titleCn && !it.title_cn) { it.title_cn = titleCn; changed = true; }
+    if (summaryCn && !it.summary_cn) { it.summary_cn = summaryCn; changed = true; }
+    if (titleCn || summaryCn) {
+      map[url] = { title_cn: titleCn || it.title_cn || '', summary_cn: summaryCn || it.summary_cn || '', ts: now };
+    }
+  }
+  if (changed) saveXmaxNewsZhCache(map);
+  return list;
+}
+
+function kickXmaxNewsZhTranslate(items) {
+  try {
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) return;
+    const targets = list.filter(it => {
+      const url = String(it && it.url ? it.url : '').trim();
+      if (!url) return false;
+      if (it.title_cn && it.summary_cn) return false;
+      if (XMAX_NEWS_ZH_INFLIGHT.has(url)) return false;
+      const title = String(it && it.title ? it.title : '').trim();
+      const summary = String(it && it.summary ? it.summary : '').trim();
+      return _looksEnglishText(title) || _looksEnglishText(summary);
+    }).slice(0, 2);
+    if (!targets.length) return;
+    targets.forEach(it => XMAX_NEWS_ZH_INFLIGHT.add(String(it.url || '').trim()));
+    ensureXmaxNewsZh(targets).then(() => {
+      targets.forEach(it => XMAX_NEWS_ZH_INFLIGHT.delete(String(it.url || '').trim()));
+      if (Array.isArray(xmaxNewsData) && xmaxNewsData.length) {
+        renderXmaxNewsCarousel(xmaxNewsCarouselIndex);
+      }
+    }).catch(() => {
+      targets.forEach(it => XMAX_NEWS_ZH_INFLIGHT.delete(String(it.url || '').trim()));
+    });
+  } catch (e) {}
+}
+
 function hasUserTextSelection() {
   try {
     const selection = window.getSelection ? String(window.getSelection()) : '';
@@ -8512,6 +8643,7 @@ function renderXmaxNewsCarousel(index) {
   );
   if (flashTime) flashTime.textContent = displayItem.time ? formatTimeAgo(displayItem.time) : '';
   renderXmaxNewsCarouselControls(items);
+  kickXmaxNewsZhTranslate(items);
 }
 
 function startXmaxNewsCarousel() {
@@ -8601,13 +8733,8 @@ function getXmaxNewsDisplayItem(item) {
     out.summary_cn = out.summary_cn || mapped.summary_cn;
   }
 
-  if (currentLang === 'zh') {
-    out.title = out.title_cn || out.title || out.title_en || '';
-    out.summary = out.summary_cn || out.summary || out.summary_en || '';
-  } else {
-    out.title = out.title_en || out.title || out.title_cn || '';
-    out.summary = out.summary_en || out.summary || out.summary_cn || '';
-  }
+  out.title = out.title_cn || out.title || out.title_en || '';
+  out.summary = out.summary_cn || out.summary || out.summary_en || '';
   return out;
 }
 
@@ -8618,13 +8745,32 @@ function _parseXmaxSiteDate(raw) {
     january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
     july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
   };
-  const m = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})[.,\s]+(\d{4})/i);
+  const m = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*[.,]?\s*(\d{4})/i);
   if (!m) return '';
   const month = monthMap[String(m[1] || '').toLowerCase()];
   const day = Number(m[2] || 0);
   const year = Number(m[3] || 0);
   if (!Number.isInteger(month) || !day || !year) return '';
   return new Date(Date.UTC(year, month, day, 0, 0, 0)).toISOString();
+}
+
+async function fetchXmaxSiteNewsViaApi() {
+  try {
+    const r = await _fetchLocalApiText(`/api/xmax_site_news?limit=12&_=${Date.now()}`, 12000, { 'Accept': 'application/json' });
+    if (!r.ok) return [];
+    const j = JSON.parse(r.text || '{}');
+    const items = (j && Array.isArray(j.items)) ? j.items : [];
+    const normalized = items.slice(0, 12).map(it => ({
+      title: String(it.title || '').trim(),
+      url: String(it.url || it.link || '').trim(),
+      source: String(it.source || 'XMAX'),
+      time: String(it.time || '').trim(),
+      summary: String(it.summary || '').trim().slice(0, 320),
+    })).filter(x => x.title && x.url && isXmaxRelevantNews(x));
+    return normalized;
+  } catch (e) {
+    return [];
+  }
 }
 
 async function fetchXmaxSiteNews() {
@@ -8644,30 +8790,55 @@ async function fetchXmaxSiteNews() {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const titleMatch = line.match(/^##\s+\[([^\]]+?)\]\((https:\/\/xmax\.com\/article\/[^)]+)\)$/i);
-    if (!titleMatch) continue;
-    const title = titleMatch[1].replace(/\s+/g, ' ').trim();
-    const url = titleMatch[2].trim();
+    let title = '';
+    let url = '';
+    let summary = '';
+    let time = '';
+
+    const mdH2 = line.match(/^##\s+\[([^\]]+?)\]\((https:\/\/xmax\.com\/article\/[^)]+)\)$/i);
+    if (mdH2) {
+      title = mdH2[1].replace(/\s+/g, ' ').trim();
+      url = mdH2[2].trim();
+    } else {
+      const linked = extractLinkedText(line);
+      if (!linked || !/^https:\/\/xmax\.com\/article\//i.test(linked.url)) continue;
+      url = linked.url;
+      const text = linked.text.replace(/\s+/g, ' ').trim();
+      const parts = text.split(/\s+##\s+/);
+      const left = (parts[0] || '').trim();
+      const right = (parts[1] || '').trim();
+      time = _parseXmaxSiteDate(left) || '';
+      if (!right) continue;
+      const pivot = right.indexOf(' XMax Inc.');
+      if (pivot > 16) {
+        title = right.slice(0, pivot).trim();
+        summary = right.slice(pivot + 1).trim();
+      } else {
+        title = right.trim();
+      }
+    }
     if (!title || !url || seen.has(url)) continue;
 
-    let summary = '';
-    for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
-      const next = lines[j];
-      if (!next || /^##\s+/.test(next) || /^\[Viewpoint/i.test(next)) break;
-      const linked = extractLinkedText(next);
-      const candidate = linked ? linked.text : next;
-      if (candidate && candidate !== title) {
-        summary = candidate.replace(/\s+/g, ' ').trim();
-        break;
+    if (!summary) {
+      for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+        const next = lines[j];
+        if (!next || /^##\s+/.test(next) || /^\[Viewpoint/i.test(next)) break;
+        const linked2 = extractLinkedText(next);
+        const candidate = linked2 ? linked2.text : next;
+        if (candidate && candidate !== title) {
+          summary = candidate.replace(/\s+/g, ' ').trim();
+          break;
+        }
       }
     }
 
-    let time = '';
-    for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
-      const prev = lines[j];
-      if (/Viewpoint/i.test(prev) || /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/i.test(prev)) {
-        time = _parseXmaxSiteDate(prev);
-        if (time) break;
+    if (!time) {
+      for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
+        const prev = lines[j];
+        if (/Viewpoint/i.test(prev) || /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/i.test(prev)) {
+          time = _parseXmaxSiteDate(prev);
+          if (time) break;
+        }
       }
     }
 
@@ -8796,8 +8967,11 @@ async function _tryJsonApiCandidates(candidates, timeoutMs) {
 
 async function fetchXmaxYahooRssNews() {
   try {
+    const siteApiItems = await fetchXmaxSiteNewsViaApi();
+    if (siteApiItems && siteApiItems.length) return await ensureXmaxNewsZh(siteApiItems.slice(0, 10));
+
     const siteItems = await fetchXmaxSiteNews();
-    if (siteItems && siteItems.length) return siteItems.slice(0, 10);
+    if (siteItems && siteItems.length) return await ensureXmaxNewsZh(siteItems.slice(0, 10));
 
     const apiTry = await _tryJsonApiCandidates([
       `/api/xmax-news?_=${Date.now()}`,
@@ -8814,16 +8988,16 @@ async function fetchXmaxYahooRssNews() {
         time: String(it.time || ''),
         summary: _stripHtmlToText(it.summary || '').slice(0, 320),
       })).filter(x => x.title && x.url && isXmaxRelevantNews(x));
-      if (normalized.length) return normalized;
+      if (normalized.length) return await ensureXmaxNewsZh(normalized);
     }
     const gnwItems = await fetchGlobeNewswireXmaxNews();
     const filteredGnw = (gnwItems || []).filter(isXmaxRelevantNews);
-    if (filteredGnw.length) return filteredGnw.slice(0, 10);
+    if (filteredGnw.length) return await ensureXmaxNewsZh(filteredGnw.slice(0, 10));
     try {
       const resp = await _fetchTextWithTimeout(`https://r.jina.ai/${XMAX_YAHOO_RSS_URL}&_=${Date.now()}`, 12000, { 'Accept': 'text/plain' });
       if (resp.ok) {
         const items = _parseRssItemsFromText(resp.text || '', 'Yahoo Finance', 10).filter(isXmaxRelevantNews);
-        if (items.length) return items;
+        if (items.length) return await ensureXmaxNewsZh(items);
       }
     } catch (e) {}
     return [];
@@ -8952,6 +9126,26 @@ async function loadXmaxNewsFlash() {
           currentLang === 'zh' ? '今天暂无新增内容' : 'No new article today',
           'XMAX'
         );
+      }
+      if (!xmaxNewsBgRefreshInFlight) {
+        xmaxNewsBgRefreshInFlight = true;
+        setTimeout(async () => {
+          try {
+            const items = await fetchXmaxYahooRssNews();
+            const normalizedItems = ensureThreeItems(items, cachedItems, seedItems);
+            const prevFirstUrl = String((cachedItems[0] || {}).url || '').trim();
+            const nextFirstUrl = String((normalizedItems[0] || {}).url || '').trim();
+            if (normalizedItems.length && nextFirstUrl && nextFirstUrl !== prevFirstUrl) {
+              const tsNow = Date.now();
+              xmaxNewsLastCheckedTs = tsNow;
+              xmaxNewsData = normalizedItems;
+              saveXmaxNewsCache(normalizedItems, tsNow, tsNow);
+              showHeadlineState(normalizedItems);
+              pulseDashCard(card);
+            }
+          } catch (e) {}
+          xmaxNewsBgRefreshInFlight = false;
+        }, 80);
       }
       return;
     }
