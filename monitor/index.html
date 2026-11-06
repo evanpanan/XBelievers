@@ -187,7 +187,7 @@ footer{max-width:1480px;margin:0 auto;padding:0 20px 40px;font-size:12.5px;color
 <div id="login" class="login" hidden>
   <form id="loginForm" class="login-box">
     <h2>XMAX 开盘监控台</h2>
-    <p class="muted">内部使用，请输入访问密码</p>
+    <p class="muted">请输入访问密码</p>
     <input id="pw" type="password" autocomplete="current-password" placeholder="访问密码" aria-label="访问密码">
     <button type="submit">进入</button>
     <p id="loginMsg" class="login-msg"></p>
@@ -197,7 +197,7 @@ footer{max-width:1480px;margin:0 auto;padding:0 20px 40px;font-size:12.5px;color
 
 <header class="topbar">
   <div class="topbar-in">
-    <div class="brand">XMAX 开盘监控台<small>内部使用，请勿外传</small></div>
+    <div class="brand">XMAX 开盘监控台<small>数据来自公开来源，仅供参考</small></div>
     <span class="pill" id="mkt"><span class="dot"></span><span id="mktText">连接中</span></span>
     <span class="toolbar num" id="clock"></span>
     <span class="spacer"></span>
@@ -325,7 +325,7 @@ footer{max-width:1480px;margin:0 auto;padding:0 20px 40px;font-size:12.5px;color
   </section>
 </main>
 <footer>
-  本页只使用公开数据，仅供公司内部了解市场情况，不构成投资建议，也不作为任何交易或回购执行的依据。主动买卖为算法估算：每一笔成交都同时有买方和卖方，"主动买入"只表示买方更急于成交，不代表资金净流入；美股是匿名市场，公开数据无法识别具体是哪家机构在买卖或做空。
+  本页只使用公开数据，仅供了解市场情况，不构成投资建议，也不作为任何交易或回购执行的依据。主动买卖为算法估算：每一笔成交都同时有买方和卖方，"主动买入"只表示买方更急于成交，不代表资金净流入；美股是匿名市场，公开数据无法识别具体是哪家机构在买卖或做空。
 </footer>
 
 <script>
@@ -804,7 +804,7 @@ function renderStory() {
   if (q.price != null) {
     const when = st === 'regular' ? '盘中' : st === 'pre' ? '盘前，昨日收盘' : st === 'post' ? '盘后，今日收盘' : '休市中，最近收盘';
     lead = `${when} XMAX 报 ${px(q.price)} 美元，较前收${q.changePct >= 0 ? '上涨' : '下跌'} ${Math.abs(q.changePct).toFixed(2)}%`;
-    if (st === 'pre' && q.prePrice) lead += `；盘前最新 ${px(q.prePrice)}`;
+    if (st === 'pre' && q.nextPrePrice) lead += `；今日盘前最新 ${px(q.nextPrePrice)}（${spct(q.nextPreChangePct)}）`;
     if (st === 'post' && q.postPrice) lead += `；盘后最新 ${px(q.postPrice)}`;
     lead += '。';
   } else lead = '暂时拿不到价格数据，请看下方各面板的提示。';
