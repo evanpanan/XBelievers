@@ -1,5 +1,11 @@
 {
+  "functions": {
+    "api/monitor/*.mjs": { "maxDuration": 30 }
+  },
   "rewrites": [
+    { "source": "/monitor", "destination": "/monitor/index.html" },
+    { "source": "/monitor/", "destination": "/monitor/index.html" },
+    { "source": "/api/monitor/(.*)", "destination": "/api/monitor/$1" },
     { "source": "/api/musk_news_rss", "destination": "/api/musk_news_rss" },
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/api/index" }
